@@ -11,6 +11,8 @@ export interface TelegramUser {
 
 interface WebApp {
   initData: string;
+  version: string;
+  isVersionAtLeast: (version: string) => boolean;
   initDataUnsafe: {
     query_id?: string;
     user?: TelegramUser;
@@ -81,8 +83,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let cleanupFullscreen: (() => void) | undefined;
       let cleanupHomeScreen: (() => void) | undefined;
 
-      // Check if requestFullscreen is supported (latest Telegram API)
-      if (typeof webApp.requestFullscreen === 'function') {
+      // Check if requestFullscreen is supported (latest Telegram API, v8.0+)
+      if (typeof webApp.requestFullscreen === 'function' && webApp.isVersionAtLeast && webApp.isVersionAtLeast('8.0')) {
         try {
           setCanFullscreen(true);
           setIsFullscreen(webApp.isFullscreen || false);
@@ -107,8 +109,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Check Home Screen Status support
-      if (typeof webApp.checkHomeScreenStatus === 'function') {
+      // Check Home Screen Status support (Telegram v8.0+)
+      if (typeof webApp.checkHomeScreenStatus === 'function' && webApp.isVersionAtLeast && webApp.isVersionAtLeast('8.0')) {
         try {
           const handleHomeScreenChecked = (event: { status: string }) => {
             setHomeScreenStatus(event.status as any);
@@ -156,7 +158,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleFullscreen = () => {
-    if (window.Telegram?.WebApp && typeof window.Telegram.WebApp.requestFullscreen === 'function') {
+    if (window.Telegram?.WebApp && typeof window.Telegram.WebApp.requestFullscreen === 'function' && window.Telegram.WebApp.isVersionAtLeast && window.Telegram.WebApp.isVersionAtLeast('8.0')) {
       try {
         const webApp = window.Telegram.WebApp;
         if (webApp.isFullscreen) {
@@ -171,7 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToHomeScreen = () => {
-    if (window.Telegram?.WebApp && typeof window.Telegram.WebApp.addToHomeScreen === 'function') {
+    if (window.Telegram?.WebApp && typeof window.Telegram.WebApp.addToHomeScreen === 'function' && window.Telegram.WebApp.isVersionAtLeast && window.Telegram.WebApp.isVersionAtLeast('8.0')) {
       try {
         window.Telegram.WebApp.addToHomeScreen();
       } catch (e) {
