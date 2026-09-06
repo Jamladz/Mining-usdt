@@ -78,57 +78,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTgData(webApp.initDataUnsafe);
       setInitData(webApp.initData || 'mock_init_data');
       
+      let cleanupFullscreen: (() => void) | undefined;
+      let cleanupHomeScreen: (() => void) | undefined;
+
       // Check if requestFullscreen is supported (latest Telegram API)
       if (typeof webApp.requestFullscreen === 'function') {
-        setCanFullscreen(true);
-        setIsFullscreen(webApp.isFullscreen || false);
-
-        const handleFullscreenChange = () => {
-          setIsFullscreen(webApp.isFullscreen);
-        };
-        
-        const handleFullscreenFailed = (error: any) => {
-          console.warn('Fullscreen failed:', error);
-        };
-
-        webApp.onEvent('fullscreenChanged', handleFullscreenChange);
-        webApp.onEvent('fullscreenFailed', handleFullscreenFailed);
-
-        return () => {
-          webApp.offEvent('fullscreenChanged', handleFullscreenChange);
-          webApp.offEvent('fullscreenFailed', handleFullscreenFailed);
-        };
+        try {
+          setCanFullscreen(true);
+          setIsFullscreen(webApp.isFullscreen || false);
+          const handleFullscreenChange = () => {
+            setIsFullscreen(webApp.isFullscreen);
+          };
+          
+          const handleFullscreenFailed = (error: any) => {
+            console.warn('Fullscreen failed:', error);
+          };
+  
+          webApp.onEvent('fullscreenChanged', handleFullscreenChange);
+          webApp.onEvent('fullscreenFailed', handleFullscreenFailed);
+  
+          cleanupFullscreen = () => {
+            webApp.offEvent('fullscreenChanged', handleFullscreenChange);
+            webApp.offEvent('fullscreenFailed', handleFullscreenFailed);
+          };
+        } catch (e) {
+          console.warn('Fullscreen not supported on this version:', e);
+          setCanFullscreen(false);
+        }
       }
       
       // Check Home Screen Status support
       if (typeof webApp.checkHomeScreenStatus === 'function') {
-        const handleHomeScreenChecked = (event: { status: string }) => {
-          setHomeScreenStatus(event.status as any);
-          if (event.status === 'missed') {
-            setCanAddToHomeScreen(true);
-          } else {
+        try {
+          const handleHomeScreenChecked = (event: { status: string }) => {
+            setHomeScreenStatus(event.status as any);
+            if (event.status === 'missed') {
+              setCanAddToHomeScreen(true);
+            } else {
+              setCanAddToHomeScreen(false);
+            }
+          };
+  
+          const handleHomeScreenAdded = () => {
+            setHomeScreenStatus('added');
             setCanAddToHomeScreen(false);
-          }
-        };
-
-        const handleHomeScreenAdded = () => {
-          setHomeScreenStatus('added');
-          setCanAddToHomeScreen(false);
-        };
-
-        webApp.onEvent('homeScreenChecked', handleHomeScreenChecked);
-        webApp.onEvent('homeScreenAdded', handleHomeScreenAdded);
-
-        webApp.checkHomeScreenStatus();
-        
-        // Return cleanup fn
-        return () => {
-          webApp.offEvent('homeScreenChecked', handleHomeScreenChecked);
-          webApp.offEvent('homeScreenAdded', handleHomeScreenAdded);
-        };
+          };
+  
+          webApp.onEvent('homeScreenChecked', handleHomeScreenChecked);
+          webApp.onEvent('homeScreenAdded', handleHomeScreenAdded);
+  
+          webApp.checkHomeScreenStatus();
+          
+          cleanupHomeScreen = () => {
+            webApp.offEvent('homeScreenChecked', handleHomeScreenChecked);
+            webApp.offEvent('homeScreenAdded', handleHomeScreenAdded);
+          };
+        } catch (e) {
+          console.warn('Home screen status not supported on this version:', e);
+          setHomeScreenStatus('unsupported');
+        }
       } else {
         setHomeScreenStatus('unsupported');
       }
+
+      return () => {
+        if (cleanupFullscreen) cleanupFullscreen();
+        if (cleanupHomeScreen) cleanupHomeScreen();
+      };
     } else {
       // Mock for standard browser view
       setInitData('mock_init_data');
@@ -141,18 +157,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleFullscreen = () => {
     if (window.Telegram?.WebApp && typeof window.Telegram.WebApp.requestFullscreen === 'function') {
-      const webApp = window.Telegram.WebApp;
-      if (webApp.isFullscreen) {
-        webApp.exitFullscreen();
-      } else {
-        webApp.requestFullscreen();
+      try {
+        const webApp = window.Telegram.WebApp;
+        if (webApp.isFullscreen) {
+          webApp.exitFullscreen();
+        } else {
+          webApp.requestFullscreen();
+        }
+      } catch (e) {
+        console.warn('Fullscreen toggle failed:', e);
       }
     }
   };
 
   const addToHomeScreen = () => {
     if (window.Telegram?.WebApp && typeof window.Telegram.WebApp.addToHomeScreen === 'function') {
-      window.Telegram.WebApp.addToHomeScreen();
+      try {
+        window.Telegram.WebApp.addToHomeScreen();
+      } catch (e) {
+        console.warn('addToHomeScreen failed:', e);
+      }
     }
   };
 
@@ -178,7 +202,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (e) {
-      console.error('Failed to auth', e);
+      console.error('Failed to auth, falling back to local state:', e);
+      // Fallback for static hosting environments without a backend (like Cloudflare Pages)
+      setUser({
+        id: tgData?.user?.id || 12345,
+        firstName: tgData?.user?.first_name || 'Demo',
+        username: tgData?.user?.username || 'demo_user',
+        balance: 15.5,
+        miningRate: 5.2,
+        totalEarned: 20.5,
+        totalWithdrawn: 5.0,
+        referralsCount: 0,
+        referralBonusEarned: 0,
+        photoUrl: tgData?.user?.photo_url || ''
+      });
     }
   };
 
