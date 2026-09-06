@@ -1,0 +1,70 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import { BottomNav } from './components/BottomNav';
+import { HomeTab } from './pages/HomeTab';
+import { TasksTab } from './pages/TasksTab';
+import { ReferralsTab } from './pages/ReferralsTab';
+import { ProfileTab } from './pages/ProfileTab';
+import { AnimatePresence, motion } from 'motion/react';
+
+function AppContent() {
+  const [currentTab, setCurrentTab] = useState('home');
+  const { user } = useApp();
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#F5F7F9] flex flex-col items-center justify-center">
+        <motion.div
+          animate={{ scale: [1, 1.1, 1], rotate: [0, 180, 360] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="relative"
+        >
+          <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" className="w-16 h-16 object-contain drop-shadow-2xl" />
+        </motion.div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-[#F5F7F9] text-slate-900 pb-[60px] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden">
+      <main className="w-full h-full overflow-y-auto overflow-x-hidden relative">
+        <AnimatePresence mode="wait">
+          {currentTab === 'home' && (
+            <motion.div key="home" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <HomeTab />
+            </motion.div>
+          )}
+          {currentTab === 'tasks' && (
+            <motion.div key="tasks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <TasksTab />
+            </motion.div>
+          )}
+          {currentTab === 'referrals' && (
+            <motion.div key="referrals" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <ReferralsTab />
+            </motion.div>
+          )}
+          {currentTab === 'profile' && (
+            <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <ProfileTab />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+      <BottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AppProvider>
+      <AppContent />
+    </AppProvider>
+  );
+}

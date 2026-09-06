@@ -1,0 +1,6 @@
+{
+  "name": "USDT Miner",
+  "description": "A production-ready Telegram Mini App for mining USDT.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
