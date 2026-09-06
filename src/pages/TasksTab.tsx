@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
+import { USDT } from '../components/USDT';
 import { useApp } from '../context/AppContext';
 import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
