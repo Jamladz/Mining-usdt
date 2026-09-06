@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { formatUSDT, CLAIM_COOLDOWN_MS } from '../lib/utils';
+import { USDT } from "../components/USDT";
 import { Pickaxe, Timer, Sparkles, Zap, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -102,8 +103,8 @@ export function HomeTab() {
               <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" className="w-10 h-10 object-contain relative z-10 drop-shadow-md" />
             </motion.div>
             
-            <h2 className="text-4xl leading-none font-black text-slate-900 tracking-tighter flex items-baseline gap-2">
-              {formatUSDT(user?.balance || 0)} <span className="text-lg text-slate-400 font-bold tracking-tight">USDT</span>
+            <h2 className="text-3xl sm:text-4xl leading-none font-black text-slate-900 tracking-tighter flex items-center justify-center w-full min-w-0">
+              <USDT amount={formatUSDT(user?.balance || 0)} size="text-3xl sm:text-4xl" iconSize="w-6 h-6 sm:w-8 sm:h-8" className="truncate" />
             </h2>
           </div>
         </motion.div>
@@ -122,7 +123,7 @@ export function HomeTab() {
               </div>
               <div>
                 <h3 className="font-bold text-[15px] text-slate-900 tracking-tight">Free Mining</h3>
-                <p className="text-[12px] text-slate-500 font-medium">Earn {formatUSDT(user?.miningRate || 0)} USDT/24h</p>
+                <p className="text-[12px] text-slate-500 font-medium flex items-center gap-1">Earn <USDT amount={formatUSDT(user?.miningRate || 0)} size="text-[12px]" iconSize="w-3 h-3" />/24h</p>
               </div>
             </div>
             {timeLeft > 0 && (
@@ -144,7 +145,7 @@ export function HomeTab() {
               >
                 <Sparkles className="w-6 h-6 text-emerald-500 mb-1" />
                 <span className="text-emerald-700 font-black tracking-tight">REWARD CLAIMED</span>
-                <span className="text-emerald-600/80 text-xs font-bold">+{formatUSDT(user?.miningRate || 0)} USDT added to balance</span>
+                <span className="text-emerald-600/80 text-xs font-bold flex items-center gap-1">+{formatUSDT(user?.miningRate || 0)} <USDT size="text-xs" iconSize="w-3 h-3" /> added to balance</span>
               </motion.div>
             ) : timeLeft > 0 ? (
               <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -172,7 +173,7 @@ export function HomeTab() {
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/10 to-emerald-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
                 <Pickaxe className="w-4 h-4" />
-                {isClaiming ? 'PROCESSING...' : `CLAIM ${formatUSDT(user?.miningRate || 0)} USDT`}
+                {isClaiming ? 'PROCESSING...' : <span className="flex items-center gap-1">CLAIM <USDT amount={formatUSDT(user?.miningRate || 0)} size="text-sm text-white" iconSize="w-4 h-4" /></span>}
               </motion.button>
             )}
           </AnimatePresence>
@@ -190,9 +191,9 @@ export function HomeTab() {
               <Zap className="w-4 h-4 text-amber-500" />
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Mining Rate</p>
             </div>
-            <div className="flex items-end gap-1">
-              <span className="text-xl font-black text-slate-900 tracking-tight">{formatUSDT(user?.miningRate || 0)}</span>
-              <span className="text-[10px] font-bold text-slate-400 mb-0.5">/24h</span>
+            <div className="flex items-center gap-1 min-w-0 w-full">
+              <USDT amount={formatUSDT(user?.miningRate || 0)} size="text-lg sm:text-xl" iconSize="w-4 h-4 sm:w-5 sm:h-5" className="truncate" />
+              <span className="text-[10px] font-bold text-slate-400 mb-0.5 shrink-0">/24h</span>
             </div>
           </motion.div>
           <motion.div 
@@ -205,9 +206,8 @@ export function HomeTab() {
               <Users className="w-4 h-4 text-blue-500" />
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Earned</p>
             </div>
-            <div className="flex items-end gap-1">
-              <span className="text-xl font-black text-slate-900 tracking-tight">{formatUSDT(user?.totalEarned || 0)}</span>
-              <span className="text-[10px] font-bold text-slate-400 mb-0.5">USDT</span>
+            <div className="flex items-center gap-1 min-w-0 w-full">
+              <USDT amount={formatUSDT(user?.totalEarned || 0)} size="text-lg sm:text-xl" iconSize="w-4 h-4 sm:w-5 sm:h-5" className="truncate" />
             </div>
           </motion.div>
         </div>

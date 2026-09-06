@@ -31,8 +31,8 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-[#F5F7F9] text-slate-900 pb-[60px] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden">
-      <main className="w-full h-full overflow-y-auto overflow-x-hidden relative">
+    <div className="min-h-[var(--tg-viewport-stable-height,100dvh)] bg-[#F5F7F9] text-slate-900 pb-[calc(60px+var(--tg-safe-area-inset-bottom,0px))] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden flex flex-col">
+      <main className="w-full flex-1 overflow-y-auto overflow-x-hidden relative">
         <AnimatePresence mode="wait">
           {currentTab === 'home' && (
             <motion.div key="home" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>

@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity } from 'lucide-react';
+import { USDT } from "../components/USDT";
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2 } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../lib/utils';
 
 const MIN_WITHDRAWAL = 2;
 
 export function ProfileTab() {
-  const { user, fetchUser, initData } = useApp();
+  const { user, fetchUser, initData, homeScreenStatus, canAddToHomeScreen, addToHomeScreen } = useApp();
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -107,6 +109,38 @@ export function ProfileTab() {
           </div>
         </motion.div>
 
+        {/* App Settings / Home Screen */}
+        {homeScreenStatus !== 'unsupported' && homeScreenStatus !== 'unknown' && homeScreenStatus !== 'checking' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[24px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 border border-slate-100">
+                {homeScreenStatus === 'added' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <BookmarkPlus className="w-5 h-5" />}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[13px] font-black text-slate-900 tracking-tight">Home Screen</span>
+                <span className="text-[10px] font-medium text-slate-400">Quick app access</span>
+              </div>
+            </div>
+            
+            <button
+              onClick={addToHomeScreen}
+              disabled={homeScreenStatus === 'added' || !canAddToHomeScreen}
+              className={cn(
+                "px-4 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all shadow-sm",
+                homeScreenStatus === 'added' 
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-100 opacity-80"
+                  : "bg-slate-900 text-white hover:bg-slate-800 shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
+              )}
+            >
+              {homeScreenStatus === 'added' ? 'Added' : 'Add App'}
+            </button>
+          </motion.div>
+        )}
+
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
           <motion.div 
@@ -116,9 +150,8 @@ export function ProfileTab() {
             className="bg-slate-900 rounded-[20px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.1)] flex flex-col text-white"
           >
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Available</p>
-            <div className="flex items-end gap-1">
-              <span className="text-xl font-black text-white tracking-tight">{formatUSDT(user?.balance || 0)}</span>
-              <span className="text-[9px] font-bold text-slate-400 mb-0.5">USDT</span>
+            <div className="flex items-center gap-1 min-w-0 w-full">
+              <USDT amount={formatUSDT(user?.balance || 0)} size="text-lg sm:text-xl text-white" iconSize="w-4 h-4 sm:w-5 sm:h-5 brightness-0 invert" className="truncate" />
             </div>
           </motion.div>
           
@@ -129,9 +162,8 @@ export function ProfileTab() {
             className="bg-white rounded-[20px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 flex flex-col"
           >
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Withdrawn</p>
-            <div className="flex items-end gap-1">
-              <span className="text-xl font-black text-slate-900 tracking-tight">{formatUSDT(user?.totalWithdrawn || 0)}</span>
-              <span className="text-[9px] font-bold text-slate-400 mb-0.5">USDT</span>
+            <div className="flex items-center gap-1 min-w-0 w-full">
+              <USDT amount={formatUSDT(user?.totalWithdrawn || 0)} size="text-lg sm:text-xl text-slate-900" iconSize="w-4 h-4 sm:w-5 sm:h-5" className="truncate" />
             </div>
           </motion.div>
         </div>
@@ -150,13 +182,13 @@ export function ProfileTab() {
               <Wallet className="w-4 h-4 text-emerald-600" />
             </div>
             <div>
-              <h3 className="text-[15px] font-black text-slate-900 tracking-tight">Withdraw USDT</h3>
+              <h3 className="text-[15px] font-black text-slate-900 tracking-tight flex items-center gap-1.5">Withdraw <USDT size="text-[15px]" iconSize="w-4 h-4" /></h3>
             </div>
           </div>
 
           <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1">(Min: 2 USDT)</span></label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1">(Min: 2 <USDT size="text-[10px]" iconSize="w-3 h-3" />)</span></label>
               <div className="relative">
                 <input 
                   type="number"
@@ -224,7 +256,7 @@ export function ProfileTab() {
                   className="flex justify-between items-center p-3 bg-slate-50 border border-slate-100 rounded-xl"
                 >
                   <div className="flex flex-col">
-                    <span className="text-xs font-black text-slate-900">{formatUSDT(tx.amount)} USDT</span>
+                    <span className="text-xs font-black text-slate-900"><USDT amount={formatUSDT(tx.amount)} size="text-xs" iconSize="w-3 h-3" /></span>
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{new Date(tx.createdAt).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center">

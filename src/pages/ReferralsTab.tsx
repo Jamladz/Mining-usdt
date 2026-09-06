@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
+import { USDT } from "../components/USDT";
 import { Users, Copy, Share2, ArrowRight } from 'lucide-react';
 import { formatUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -68,9 +69,8 @@ export function ReferralsTab() {
             className="bg-white rounded-[20px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 flex flex-col"
           >
             <p className="text-[9px] font-bold text-slate-400 uppercase mb-1 tracking-widest">Bonus Earned</p>
-            <div className="flex items-end gap-1">
-              <span className="text-2xl font-black text-emerald-600 tracking-tight">{formatUSDT(user?.referralBonusEarned || 0)}</span>
-              <span className="text-[10px] font-bold text-emerald-600 mb-0.5">USDT</span>
+            <div className="flex items-center gap-1 min-w-0 w-full">
+              <USDT amount={formatUSDT(user?.referralBonusEarned || 0)} size="text-xl sm:text-2xl text-emerald-600" iconSize="w-5 h-5 sm:w-6 sm:h-6" className="truncate" />
             </div>
           </motion.div>
         </div>

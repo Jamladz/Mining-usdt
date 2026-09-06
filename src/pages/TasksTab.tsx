@@ -93,7 +93,7 @@ export function TasksTab() {
           </div>
           <div className="flex flex-col min-w-0 justify-center">
             <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
-            <p className={cn("text-[9px] font-bold uppercase tracking-widest", isCompleted ? "text-slate-400" : "text-emerald-600")}>+0.01 USDT / 24H</p>
+            <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1", isCompleted ? "text-slate-400" : "text-emerald-600")}>+0.01 <USDT size="text-[9px]" iconSize="w-3 h-3" /> / 24H</p>
           </div>
         </div>
         
