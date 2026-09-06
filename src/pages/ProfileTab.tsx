@@ -188,7 +188,7 @@ export function ProfileTab() {
 
           <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex items-center gap-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1">(Min: 2 <USDT size="text-[10px]" iconSize="w-3 h-3" />)</span></label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex flex-wrap items-center gap-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1 inline-flex items-center gap-1">(Min: 2 <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" className="w-3 h-3 object-contain inline-block -mt-0.5" /> USDT)</span></label>
               <div className="relative">
                 <input 
                   type="number"
