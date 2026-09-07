@@ -86,7 +86,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [tgPlatform, setTgPlatform] = useState<string>('unknown');
   const [safeAreaSupported, setSafeAreaSupported] = useState<boolean>(false);
   const [contentSafeAreaSupported, setContentSafeAreaSupported] = useState<boolean>(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('usdt_miner_user_data');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (user) {
+      try {
+        localStorage.setItem('usdt_miner_user_data', JSON.stringify(user));
+      } catch (e) {}
+    }
+  }, [user]);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [homeScreenStatus, setHomeScreenStatus] = useState<'unsupported' | 'unknown' | 'added' | 'missed' | 'checking'>('checking');
@@ -97,6 +113,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const webApp = window.Telegram.WebApp;
       webApp.ready();
       webApp.expand();
+      if (typeof webApp.disableVerticalSwipes === 'function') {
+        webApp.disableVerticalSwipes();
+      }
       setTgData(webApp.initDataUnsafe);
       setInitData(webApp.initData || 'mock_init_data');
       setTgVersion(webApp.version || 'unknown');
@@ -250,18 +269,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       console.error('Failed to auth, falling back to local state:', e);
-      // Fallback for static hosting environments without a backend (like Cloudflare Pages)
-      setUser({
-        id: tgData?.user?.id || 12345,
-        firstName: tgData?.user?.first_name || 'Demo',
-        username: tgData?.user?.username || 'demo_user',
-        balance: 15.5,
-        miningRate: 5.2,
-        totalEarned: 20.5,
-        totalWithdrawn: 5.0,
-        referralsCount: 0,
-        referralBonusEarned: 0,
-        photoUrl: tgData?.user?.photo_url || ''
+      // Only set default mock if no state exists at all
+      setUser((current: any) => {
+        if (current) return current;
+        return {
+          id: tgData?.user?.id?.toString() || '12345',
+          firstName: tgData?.user?.first_name || 'Demo',
+          username: tgData?.user?.username || 'demo_user',
+          balance: 0,
+          miningRate: 1000, // BASE_MINING_RATE
+          totalEarned: 0,
+          totalWithdrawn: 0,
+          referralsCount: 0,
+          referralBonusEarned: 0,
+          photoUrl: tgData?.user?.photo_url || '',
+          claimedMilestones: '[]',
+          completedTasks: '[]'
+        };
       });
     }
   };
