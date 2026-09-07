@@ -1,0 +1,98 @@
+--- server.ts
++++ server.ts
+@@ -73,40 +73,50 @@
+   let user = await db.select().from(users).where(eq(users.id, userId)).get();
+   
+   if (!user) {
+     // Check for referral
+     const ref = req.body.start_param;
+     let referredBy = null;
+-    if (ref && ref.startsWith('ref_')) {
+-      referredBy = ref.replace('ref_', '');
++    if (ref && ref.startsWith('ref_tg_')) {
++      referredBy = ref.replace('ref_tg_', '');
+     }
+ 
+-    user = await db.insert(users).values({
+-      id: userId,
+-      username: tgUser.username || '',
+-      firstName: tgUser.first_name || '',
+-      photoUrl: tgUser.photo_url || '',
+-      referralCode: `ref_${userId}`,
+-      referredBy,
+-      balance: 0,
+-      totalEarned: 0,
+-      miningRate: BASE_MINING_RATE,
+-    }).returning().get();
+-
+-    // Process referral bonus if valid
+-    if (referredBy && referredBy !== userId) {
+-      const referrer = await db.select().from(users).where(eq(users.id, referredBy)).get();
+-      if (referrer) {
+-        // Direct bonus: 0.10 USDT (1000 scaled) and +0.005 USDT mining rate (50 scaled)
+-        const refBonus = 1000;
+-        const rateBoost = 50; 
+-        await db.update(users).set({
+-          balance: referrer.balance + refBonus,
+-          totalEarned: referrer.totalEarned + refBonus,
+-          miningRate: Math.min(referrer.miningRate + rateBoost, MAX_MINING_RATE)
+-        }).where(eq(users.id, referredBy));
+-        
+-        await db.insert(referrals).values({
+-          referrerId: referredBy,
+-          referredUserId: userId,
+-          rewardStatus: 'paid',
+-          createdAt: Date.now()
+-        });
+-      }
+-    }
++    const WELCOME_BONUS = 5000; // 0.5 USDT
++    const REFERRER_REWARD = 5000; // 0.5 USDT
++    const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
++
++    // Atomic Database Transaction for Registration + Referral
++    user = await db.transaction(async (tx) => {
++      let balanceInit = 0;
++      let totalEarnedInit = 0;
++      
++      if (referredBy && referredBy !== userId) {
++        const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
++        if (referrer) {
++          // Grant Welcome Bonus
++          balanceInit = WELCOME_BONUS;
++          totalEarnedInit = WELCOME_BONUS;
++
++          // Grant Referrer Bonus
++          await tx.update(users).set({
++            balance: referrer.balance + REFERRER_REWARD,
++            totalEarned: referrer.totalEarned + REFERRER_REWARD,
++            miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE)
++          }).where(eq(users.id, referredBy));
++          
++          await tx.insert(referrals).values({
++            referrerId: referredBy,
++            referredUserId: userId,
++            rewardStatus: 'paid',
++            createdAt: Date.now()
++          });
++        } else {
++            referredBy = null; // Invalid referrer
++        }
++      }
++
++      const newUser = await tx.insert(users).values({
++        id: userId,
++        username: tgUser.username || '',
++        firstName: tgUser.first_name || '',
++        photoUrl: tgUser.photo_url || '',
++        referralCode: `ref_tg_${userId}`,
++        referredBy,
++        balance: balanceInit,
++        totalEarned: totalEarnedInit,
++        miningRate: BASE_MINING_RATE,
++      }).returning().get();
++      
++      return newUser;
++    });
+   } else {
+     // Update profile pic/name if changed

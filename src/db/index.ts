@@ -26,6 +26,7 @@ if (!process.env.DATABASE_URL || process.env.DATABASE_URL === 'file:local.db') {
       referred_by TEXT,
       last_claim_at INTEGER,
       created_at INTEGER DEFAULT (strftime('%s','now') * 1000),
+      claimed_milestones TEXT DEFAULT '[]',
       updated_at INTEGER DEFAULT (strftime('%s','now') * 1000)
     )
   `);

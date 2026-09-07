@@ -76,43 +76,59 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     // Check for referral
     const ref = req.body.start_param;
     let referredBy = null;
-    if (ref && ref.startsWith('ref_')) {
-      referredBy = ref.replace('ref_', '');
+    if (ref && ref.startsWith('ref_tg_')) {
+      referredBy = ref.replace('ref_tg_', '');
     }
 
-    user = await db.insert(users).values({
-      id: userId,
-      username: tgUser.username || '',
-      firstName: tgUser.first_name || '',
-      photoUrl: tgUser.photo_url || '',
-      referralCode: `ref_${userId}`,
-      referredBy,
-      balance: 0,
-      totalEarned: 0,
-      miningRate: BASE_MINING_RATE,
-    }).returning().get();
+    const WELCOME_BONUS = 5000; // 0.5 USDT
+    const REFERRER_REWARD = 5000; // 0.5 USDT
+    const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
 
-    // Process referral bonus if valid
-    if (referredBy && referredBy !== userId) {
-      const referrer = await db.select().from(users).where(eq(users.id, referredBy)).get();
-      if (referrer) {
-        // Direct bonus: 0.10 USDT (1000 scaled) and +0.005 USDT mining rate (50 scaled)
-        const refBonus = 1000;
-        const rateBoost = 50; 
-        await db.update(users).set({
-          balance: referrer.balance + refBonus,
-          totalEarned: referrer.totalEarned + refBonus,
-          miningRate: Math.min(referrer.miningRate + rateBoost, MAX_MINING_RATE)
-        }).where(eq(users.id, referredBy));
-        
-        await db.insert(referrals).values({
-          referrerId: referredBy,
-          referredUserId: userId,
-          rewardStatus: 'paid',
-          createdAt: Date.now()
-        });
+    // Atomic Database Transaction for Registration + Referral
+    user = await db.transaction(async (tx) => {
+      let balanceInit = 0;
+      let totalEarnedInit = 0;
+      
+      if (referredBy && referredBy !== userId) {
+        const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
+        if (referrer) {
+          // Grant Welcome Bonus
+          balanceInit = WELCOME_BONUS;
+          totalEarnedInit = WELCOME_BONUS;
+
+          // Grant Referrer Bonus
+          await tx.update(users).set({
+            balance: referrer.balance + REFERRER_REWARD,
+            totalEarned: referrer.totalEarned + REFERRER_REWARD,
+            miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE)
+          }).where(eq(users.id, referredBy));
+          
+          await tx.insert(referrals).values({
+            referrerId: referredBy,
+            referredUserId: userId,
+            rewardStatus: 'paid',
+            createdAt: Date.now()
+          });
+        } else {
+            referredBy = null; // Invalid referrer
+        }
       }
-    }
+
+      const newUser = await tx.insert(users).values({
+        id: userId,
+        username: tgUser.username || '',
+        firstName: tgUser.first_name || '',
+        photoUrl: tgUser.photo_url || '',
+        referralCode: `ref_tg_${userId}`,
+        referredBy,
+        balance: balanceInit,
+        totalEarned: totalEarnedInit,
+        miningRate: BASE_MINING_RATE,
+        claimedMilestones: '[]'
+      }).returning().get();
+      
+      return newUser;
+    });
   } else {
     // Update profile pic/name if changed
     await db.update(users).set({
@@ -238,6 +254,72 @@ app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   res.json({ history });
 });
 
+
+app.get('/api/referrals', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const friends = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).all();
+  
+  // Get usernames for friends
+  const friendDetails = await Promise.all(friends.map(async (f) => {
+    const friendUser = await db.select().from(users).where(eq(users.id, f.referredUserId)).get();
+    return {
+      id: f.referredUserId,
+      username: friendUser?.username || 'Unknown',
+      createdAt: f.createdAt
+    };
+  }));
+
+  res.json({ friends: friendDetails });
+});
+
+const MILESTONES = [
+  { id: 'm1', target: 3, rewardUsdt: 10000, rewardRate: 500 }, // 1 USDT, +0.05 Rate
+  { id: 'm2', target: 10, rewardUsdt: 50000, rewardRate: 1000 }, // 5 USDT, +0.10 Rate
+  { id: 'm3', target: 25, rewardUsdt: 150000, rewardRate: 2000 }, // 15 USDT, +0.20 Rate
+  { id: 'm4', target: 50, rewardUsdt: 500000, rewardRate: 5000 }, // 50 USDT, +0.50 Rate
+  { id: 'm5', target: 100, rewardUsdt: 1500000, rewardRate: 10000 }, // 150 USDT, +1.0 Rate
+];
+
+app.post('/api/referrals/milestone', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const { milestoneId } = req.body;
+  
+  const milestone = MILESTONES.find(m => m.id === milestoneId);
+  if (!milestone) return res.status(400).json({ error: 'Invalid milestone' });
+
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  let claimedMilestones: string[] = [];
+  try {
+    claimedMilestones = JSON.parse(user.claimedMilestones || '[]');
+  } catch (e) {}
+
+  if (claimedMilestones.includes(milestoneId)) {
+    return res.status(400).json({ error: 'Milestone already claimed' });
+  }
+
+  const userReferrals = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).all();
+  if (userReferrals.length < milestone.target) {
+    return res.status(400).json({ error: 'Not enough referrals' });
+  }
+
+  claimedMilestones.push(milestoneId);
+  
+  const newRate = Math.min(user.miningRate + milestone.rewardRate, MAX_MINING_RATE);
+  
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({
+      balance: user.balance + milestone.rewardUsdt,
+      totalEarned: user.totalEarned + milestone.rewardUsdt,
+      miningRate: newRate,
+      claimedMilestones: JSON.stringify(claimedMilestones)
+    }).where(eq(users.id, userId));
+  });
+
+  const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
+  res.json({ success: true, user: updatedUser });
+});
 
 // Vite middleware for development
 async function startServer() {

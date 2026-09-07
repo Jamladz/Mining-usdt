@@ -65,6 +65,7 @@ interface AppContextType {
   tgVersion: string;
   tgPlatform: string;
   user: any | null; // Database user object
+  setUser: React.Dispatch<React.SetStateAction<any>>;
   fetchUser: () => Promise<void>;
   isFullscreen: boolean;
   toggleFullscreen: () => void;
@@ -260,7 +261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [initData]);
 
   return (
-    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported }}>
+    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, setUser, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported }}>
       {children}
     </AppContext.Provider>
   );

@@ -13,6 +13,7 @@ export const users = sqliteTable('users', {
   referredBy: text('referred_by'),
   lastClaimAt: integer('last_claim_at'),
   createdAt: integer('created_at').default(Date.now()),
+  claimedMilestones: text('claimed_milestones').default('[]'),
   updatedAt: integer('updated_at').default(Date.now()),
 });
 
