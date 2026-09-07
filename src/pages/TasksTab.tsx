@@ -84,7 +84,7 @@ export function TasksTab() {
         el.removeEventListener('onError', handleError);
       };
     }
-  }, [completedTasksList]);
+  });
 
   useEffect(() => {
     if (user?.completedTasks) {
