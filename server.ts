@@ -259,6 +259,12 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
     boostAmount = 300; // +0.03 USDT
   } else if (taskId.startsWith('adsgram_interstitial_')) {
     boostAmount = 100; // +0.01 USDT
+  } else if (taskId === 'monetag_rewarded_interstitial') {
+    boostAmount = 300; // +0.03 USDT
+  } else if (taskId === 'monetag_rewarded_popup') {
+    boostAmount = 200; // +0.02 USDT
+  } else if (taskId === 'monetag_inapp_interstitial') {
+    boostAmount = 100; // +0.01 USDT
   }
   
   const newRate = Math.min(user.miningRate + boostAmount, MAX_MINING_RATE);

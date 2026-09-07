@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../components/Header';
 import { USDT } from '../components/USDT';
 import { useApp } from '../context/AppContext';
@@ -119,6 +119,31 @@ export function TasksTab() {
     return () => clearInterval(timer);
   }, []);
 
+  const autoTriggeredRef = useRef(false);
+  useEffect(() => {
+    const showAd = (window as any).show_11747006;
+    const { isCompleted } = getTaskStatus('monetag_inapp_interstitial');
+    
+    if (showAd && !isCompleted && !autoTriggeredRef.current) {
+      autoTriggeredRef.current = true;
+      console.log('Automatically triggering background Monetag In-App Interstitial');
+      showAd({
+        type: 'inApp',
+        inAppSettings: {
+          frequency: 2,
+          capping: 0.1,
+          interval: 30,
+          timeout: 5,
+          everyPage: false
+        }
+      }).then(() => {
+        triggerBackendTaskCompletion('monetag_inapp_interstitial', 'monetag', 100);
+      }).catch((err: any) => {
+        console.warn('Automatic Monetag In-App Interstitial error:', err);
+      });
+    }
+  }, [completedTasksList]);
+
   const getTaskStatus = (taskId: string) => {
     if (taskId === 'sys_add_home' && homeScreenStatus === 'added') {
       return { isCompleted: true, timeLeft: 24 * 60 * 60 * 1000 }; // Permanently completed or large cooldown
@@ -173,6 +198,33 @@ export function TasksTab() {
         };
       }
     }
+
+    if (taskId === 'monetag_rewarded_interstitial') {
+      const status = getTaskStatus(taskId);
+      return {
+        isCompleted: status.isCompleted,
+        timeLeft: status.timeLeft,
+        subLabel: 'Watch a rewarded advertisement and receive your reward.'
+      };
+    }
+
+    if (taskId === 'monetag_rewarded_popup') {
+      const status = getTaskStatus(taskId);
+      return {
+        isCompleted: status.isCompleted,
+        timeLeft: status.timeLeft,
+        subLabel: 'Watch the advertisement and receive your reward.'
+      };
+    }
+
+    if (taskId === 'monetag_inapp_interstitial') {
+      const status = getTaskStatus(taskId);
+      return {
+        isCompleted: status.isCompleted,
+        timeLeft: status.timeLeft,
+        subLabel: 'Background ads load automatically.'
+      };
+    }
     
     // Normal tasks
     const status = getTaskStatus(taskId);
@@ -189,6 +241,58 @@ export function TasksTab() {
     
     // Ignore native Adsgram Task since it has its own HTML element handling
     if (task.id === 'adsgram_task') return;
+
+    if (task.provider === 'monetag') {
+      const showAd = (window as any).show_11747006;
+      if (!showAd) {
+        alert('Monetag Ad SDK is currently unavailable. Please check your internet connection or disable ad blockers.');
+        return;
+      }
+
+      setLoadingTask(task.id);
+
+      if (task.id === 'monetag_rewarded_interstitial') {
+        try {
+          await showAd();
+          await triggerBackendTaskCompletion('monetag_rewarded_interstitial', 'monetag', 300);
+        } catch (error) {
+          console.warn('Monetag Rewarded Interstitial error/dismissed:', error);
+          alert('You must watch the advertisement completely to claim your reward!');
+        } finally {
+          setLoadingTask(null);
+        }
+      } else if (task.id === 'monetag_rewarded_popup') {
+        try {
+          await showAd('pop');
+          await triggerBackendTaskCompletion('monetag_rewarded_popup', 'monetag', 200);
+        } catch (error) {
+          console.warn('Monetag Rewarded Popup error/dismissed:', error);
+          alert('You must interact with the advertisement completely to claim your reward!');
+        } finally {
+          setLoadingTask(null);
+        }
+      } else if (task.id === 'monetag_inapp_interstitial') {
+        try {
+          await showAd({
+            type: 'inApp',
+            inAppSettings: {
+              frequency: 2,
+              capping: 0.1,
+              interval: 30,
+              timeout: 5,
+              everyPage: false
+            }
+          });
+          await triggerBackendTaskCompletion('monetag_inapp_interstitial', 'monetag', 100);
+        } catch (error) {
+          console.warn('Monetag In-App Interstitial error/dismissed:', error);
+          alert('Failed to show the in-app interstitial. Please try again!');
+        } finally {
+          setLoadingTask(null);
+        }
+      }
+      return;
+    }
 
     let finalTaskId = task.id;
     let blockId = '';
@@ -263,6 +367,30 @@ export function TasksTab() {
     }
   ];
 
+  const monetagTasks: Task[] = [
+    {
+      id: 'monetag_rewarded_interstitial',
+      title: 'Watch an Ad',
+      provider: 'monetag',
+      icon: <MonitorPlay className="w-5 h-5" />,
+      rewardValue: '0.03'
+    },
+    {
+      id: 'monetag_rewarded_popup',
+      title: 'Watch Rewarded Popup',
+      provider: 'monetag',
+      icon: <MousePointerClick className="w-5 h-5" />,
+      rewardValue: '0.02'
+    },
+    {
+      id: 'monetag_inapp_interstitial',
+      title: 'In-App Interstitial',
+      provider: 'monetag',
+      icon: <Smartphone className="w-5 h-5" />,
+      rewardValue: '0.01'
+    }
+  ];
+
   const sysTasks: Task[] = [
     { 
       id: 'sys_add_home', 
@@ -326,7 +454,11 @@ export function TasksTab() {
       >
         <div className="flex items-center gap-3 overflow-hidden">
           <div className={cn("flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center", 
-            isCompleted ? "bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-500"
+            isCompleted 
+              ? "bg-slate-100 text-slate-400" 
+              : task.provider === 'monetag'
+                ? "bg-indigo-50 text-indigo-500"
+                : "bg-blue-50 text-blue-500"
           )}>
             {React.cloneElement(task.icon as React.ReactElement, { className: "w-4 h-4" })}
           </div>
@@ -410,6 +542,14 @@ export function TasksTab() {
               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>
             </div>
             {adsgramTasks.map((t, i) => renderTask(t, i))}
+          </motion.section>
+
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
+            </div>
+            {monetagTasks.map((t, i) => renderTask(t, i))}
           </motion.section>
         </div>
       </div>
