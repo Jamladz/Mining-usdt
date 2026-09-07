@@ -253,6 +253,12 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   let boostAmount = 100; // +0.01 USDT
   if (taskId === 'sys_add_home') {
     boostAmount = 500; // +0.05 USDT
+  } else if (taskId === 'adsgram_reward') {
+    boostAmount = 200; // +0.02 USDT
+  } else if (taskId === 'adsgram_task') {
+    boostAmount = 300; // +0.03 USDT
+  } else if (taskId.startsWith('adsgram_interstitial_')) {
+    boostAmount = 100; // +0.01 USDT
   }
   
   const newRate = Math.min(user.miningRate + boostAmount, MAX_MINING_RATE);

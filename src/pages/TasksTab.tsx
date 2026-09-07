@@ -79,19 +79,91 @@ export function TasksTab() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const getTaskStatusInfo = (taskId: string) => {
+    if (taskId === 'sys_add_home') {
+      const status = getTaskStatus('sys_add_home');
+      return {
+        isCompleted: status.isCompleted,
+        timeLeft: status.timeLeft,
+        subLabel: 'Permanent Boost'
+      };
+    }
+    
+    if (taskId === 'adsgram_interstitial') {
+      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
+      const completedCount = completedSubtasks.length;
+      
+      if (completedCount === 5) {
+        const lastStatus = getTaskStatus('adsgram_interstitial_5');
+        return {
+          isCompleted: true,
+          timeLeft: lastStatus.timeLeft,
+          subLabel: '5/5 Watched today'
+        };
+      } else {
+        return {
+          isCompleted: false,
+          timeLeft: 0,
+          subLabel: `${completedCount}/5 Watched today`
+        };
+      }
+    }
+    
+    // Normal tasks
+    const status = getTaskStatus(taskId);
+    return {
+      isCompleted: status.isCompleted,
+      timeLeft: status.timeLeft,
+      subLabel: 'Resets every 24 hours'
+    };
+  };
+
   const handleTaskClick = async (task: Task) => {
-    const { isCompleted } = getTaskStatus(task.id);
+    const { isCompleted } = getTaskStatusInfo(task.id);
     if (loadingTask || isCompleted) return;
     
-    // Execute custom action if provided (like addToHomeScreen)
+    let finalTaskId = task.id;
+    let blockId = '';
+
+    if (task.id === 'adsgram_reward') {
+      blockId = 'int-46657'; // Adsgram Reward Block ID
+    } else if (task.id === 'adsgram_interstitial') {
+      blockId = 'int-46658'; // Adsgram Interstitial Block ID
+      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
+      const nextNum = completedSubtasks.length + 1;
+      if (nextNum > 5) return;
+      finalTaskId = `adsgram_interstitial_${nextNum}`;
+    } else if (task.id === 'adsgram_task') {
+      blockId = 'int-46660'; // Adsgram Task Block ID
+    }
+
     if (task.action) {
       task.action();
     }
 
     setLoadingTask(task.id);
+
+    // Adsgram official Ad controller invocation
+    if (blockId) {
+      const adsgramLib = (window as any).Adsgram;
+      if (adsgramLib) {
+        try {
+          const AdController = adsgramLib.init({ blockId });
+          await AdController.show();
+          console.log('Adsgram Ad completed successfully');
+        } catch (error: any) {
+          console.warn('Adsgram Ad closed, skipped, or failed:', error);
+          alert('You must watch the ad completely to claim your reward!');
+          setLoadingTask(null);
+          return;
+        }
+      } else {
+        console.warn('Adsgram SDK not loaded or blocked, using fallback simulation');
+      }
+    }
     
     setTimeout(async () => {
-      const completionObj = { taskId: task.id, completedAt: Date.now() };
+      const completionObj = { taskId: finalTaskId, completedAt: Date.now() };
       try {
         const res = await fetch('/api/tasks/complete', {
           method: 'POST',
@@ -99,13 +171,12 @@ export function TasksTab() {
             'Content-Type': 'application/json',
             'Authorization': initData || ''
           },
-          body: JSON.stringify({ taskId: task.id, provider: task.provider })
+          body: JSON.stringify({ taskId: finalTaskId, provider: task.provider })
         });
         
         const data = await res.json();
         if (data.success) {
-          // Update local state directly with timestamp
-          const updatedList = [...completedTasksList.filter(c => c.taskId !== task.id), completionObj];
+          const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
           setCompletedTasksList(updatedList);
           
           if (user) {
@@ -121,11 +192,11 @@ export function TasksTab() {
         }
       } catch (e) {
         console.warn('Backend not available, using local simulation for task completion');
-        const updatedList = [...completedTasksList.filter(c => c.taskId !== task.id), completionObj];
+        const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
         setCompletedTasksList(updatedList);
         
         if (user) {
-          const rewardRateBoost = task.id === 'sys_add_home' ? 500 : 100;
+          const rewardRateBoost = task.id === 'sys_add_home' ? 500 : task.id === 'adsgram_reward' ? 200 : task.id === 'adsgram_task' ? 300 : 100;
           setUser({ 
             ...user, 
             balance: (user.balance || 0) + 100, // +0.01 USDT
@@ -136,21 +207,34 @@ export function TasksTab() {
       } finally {
         setLoadingTask(null);
       }
-    }, 2000); // Simulate task delay
+    }, 1000); // Trigger completion
   };
 
-  const monetagTasks: Task[] = [
-    { id: 'monetag_1', title: 'Watch Premium Ad', provider: 'monetag', icon: <MonitorPlay className="w-5 h-5" /> },
-    { id: 'monetag_2', title: 'Click Offer', provider: 'monetag', icon: <MousePointerClick className="w-5 h-5" /> }
-  ];
-
   const adsgramTasks: Task[] = [
-    { id: 'adsgram_1', title: 'View Sponsored Video', provider: 'adsgram', icon: <Smartphone className="w-5 h-5" /> },
-    { id: 'adsgram_2', title: 'Visit Partner Website', provider: 'adsgram', icon: <Globe className="w-5 h-5" /> }
+    { 
+      id: 'adsgram_reward', 
+      title: 'Adsgram Reward Video', 
+      provider: 'adsgram', 
+      icon: <MonitorPlay className="w-5 h-5" />,
+      rewardValue: '0.02'
+    },
+    { 
+      id: 'adsgram_interstitial', 
+      title: 'Adsgram Interstitial Ad', 
+      provider: 'adsgram', 
+      icon: <Play className="w-5 h-5" />,
+      rewardValue: '0.01'
+    },
+    { 
+      id: 'adsgram_task', 
+      title: 'Adsgram Task Ad', 
+      provider: 'adsgram', 
+      icon: <Smartphone className="w-5 h-5" />,
+      rewardValue: '0.03'
+    }
   ];
 
   const sysTasks: Task[] = [
-    { id: 'sys_daily', title: 'Daily Check-in', provider: 'system', icon: <Gift className="w-5 h-5" /> },
     { 
       id: 'sys_add_home', 
       title: 'Add to Home Screen', 
@@ -171,7 +255,7 @@ export function TasksTab() {
   });
 
   const renderTask = (task: Task, index: number) => {
-    const { isCompleted, timeLeft } = getTaskStatus(task.id);
+    const { isCompleted, timeLeft, subLabel } = getTaskStatusInfo(task.id);
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
     
@@ -188,17 +272,16 @@ export function TasksTab() {
       >
         <div className="flex items-center gap-3 overflow-hidden">
           <div className={cn("flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center", 
-            isCompleted ? "bg-slate-100 text-slate-400" : 
-            task.provider === 'monetag' ? "bg-indigo-50 text-indigo-500" : 
-            task.provider === 'adsgram' ? "bg-blue-50 text-blue-500" : 
-            "bg-emerald-50 text-emerald-500"
+            isCompleted ? "bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-500"
           )}>
             {React.cloneElement(task.icon as React.ReactElement, { className: "w-4 h-4" })}
           </div>
           <div className="flex flex-col min-w-0 justify-center">
             <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
-            <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1", isCompleted ? "text-slate-400" : "text-emerald-600")}>
-              +{reward} <USDT size="text-[9px]" iconSize="w-3 h-3" /> / 24H
+            <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5", isCompleted ? "text-slate-400" : "text-emerald-600")}>
+              <span>+{reward} <USDT size="text-[9px]" iconSize="w-3 h-3" /> / 24H</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-slate-400 normal-case tracking-normal">{subLabel}</span>
             </p>
           </div>
         </div>
@@ -268,14 +351,6 @@ export function TasksTab() {
           </motion.section>
 
           <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
-            </div>
-            {monetagTasks.map((t, i) => renderTask(t, i))}
-          </motion.section>
-
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
             <div className="flex items-center gap-2 mb-3 px-1">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>

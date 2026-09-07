@@ -110,7 +110,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (window.Telegram?.WebApp) {
-      const webApp = window.Telegram.WebApp;
+      const webApp = window.Telegram.WebApp as any;
       webApp.ready();
       webApp.expand();
       if (typeof webApp.disableVerticalSwipes === 'function') {
