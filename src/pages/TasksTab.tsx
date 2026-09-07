@@ -126,15 +126,15 @@ export function TasksTab() {
     let blockId = '';
 
     if (task.id === 'adsgram_reward') {
-      blockId = 'vid-46657'; // Adsgram Reward Block ID
+      blockId = '46657'; // Adsgram Reward Block ID (Pure number as string)
     } else if (task.id === 'adsgram_interstitial') {
-      blockId = 'int-46658'; // Adsgram Interstitial Block ID
+      blockId = 'int-46658'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
       const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
       const nextNum = completedSubtasks.length + 1;
       if (nextNum > 5) return;
       finalTaskId = `adsgram_interstitial_${nextNum}`;
     } else if (task.id === 'adsgram_task') {
-      blockId = 'task-46660'; // Adsgram Task Block ID
+      blockId = '46660'; // Adsgram Task Block ID (Pure number as string)
     }
 
     if (task.action) {
