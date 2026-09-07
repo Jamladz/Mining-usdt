@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gt } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
@@ -80,8 +80,8 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       referredBy = ref.replace('ref_tg_', '');
     }
 
-    const WELCOME_BONUS = 5000; // 0.5 USDT
-    const REFERRER_REWARD = 5000; // 0.5 USDT
+    const WELCOME_BONUS = 7000; // 0.7 USDT
+    const REFERRER_REWARD = 7000; // 0.7 USDT
     const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
 
     // Atomic Database Transaction for Registration + Referral
@@ -141,9 +141,26 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
   // Count referrals and calculate earned bonus
   const userReferrals = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).all();
-  const referralBonusEarned = userReferrals.length * 1000; // 0.10 USDT per referral
+  const referralBonusEarned = userReferrals.length * 5000; // 0.10 USDT per referral
 
-  res.json({ user, referralsCount: userReferrals.length, referralBonusEarned });
+  // Tasks completed in the last 24 hours
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const recentTasks = await db.select().from(taskCompletions)
+    .where(
+      and(
+        eq(taskCompletions.userId, userId),
+        gt(taskCompletions.completedAt, now - ONE_DAY)
+      )
+    ).all();
+  
+  const completedTaskIds = recentTasks.map(t => t.taskId);
+
+  res.json({ 
+    user: { ...user, completedTasks: JSON.stringify(completedTaskIds) }, 
+    referralsCount: userReferrals.length, 
+    referralBonusEarned 
+  });
 });
 
 app.post('/api/mine', requireUser, async (req: any, res: any) => {
@@ -184,12 +201,21 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   
   if (!taskId || !provider) return res.status(400).json({ error: 'Missing task details' });
 
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
   const existing = await db.select().from(taskCompletions)
-    .where(and(eq(taskCompletions.userId, userId), eq(taskCompletions.taskId, taskId)))
+    .where(
+      and(
+        eq(taskCompletions.userId, userId), 
+        eq(taskCompletions.taskId, taskId),
+        gt(taskCompletions.completedAt, now - ONE_DAY)
+      )
+    )
     .get();
 
   if (existing) {
-    return res.status(400).json({ error: 'Task already completed' });
+    return res.status(400).json({ error: 'Task already completed recently' });
   }
 
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -277,11 +303,11 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
 });
 
 const MILESTONES = [
-  { id: 'm1', target: 3, rewardUsdt: 10000, rewardRate: 500 }, // 1 USDT, +0.05 Rate
-  { id: 'm2', target: 10, rewardUsdt: 50000, rewardRate: 1000 }, // 5 USDT, +0.10 Rate
-  { id: 'm3', target: 25, rewardUsdt: 150000, rewardRate: 2000 }, // 15 USDT, +0.20 Rate
-  { id: 'm4', target: 50, rewardUsdt: 500000, rewardRate: 5000 }, // 50 USDT, +0.50 Rate
-  { id: 'm5', target: 100, rewardUsdt: 1500000, rewardRate: 10000 }, // 150 USDT, +1.0 Rate
+  { id: 'm1', target: 3, rewardUsdt: 3000, rewardRate: 500 }, // 0.3 USDT, +0.05 Rate
+  { id: 'm2', target: 10, rewardUsdt: 10000, rewardRate: 1000 }, // 1.0 USDT, +0.10 Rate
+  { id: 'm3', target: 25, rewardUsdt: 25000, rewardRate: 2000 }, // 2.5 USDT, +0.20 Rate
+  { id: 'm4', target: 50, rewardUsdt: 50000, rewardRate: 5000 }, // 5.0 USDT, +0.50 Rate
+  { id: 'm5', target: 100, rewardUsdt: 100000, rewardRate: 10000 }, // 10.0 USDT, +1.0 Rate
 ];
 
 app.post('/api/referrals/milestone', requireUser, async (req: any, res: any) => {

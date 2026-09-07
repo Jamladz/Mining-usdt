@@ -16,11 +16,11 @@ export function ReferralsTab() {
   const referralLink = `https://t.me/Miningusdt2027_bot?startapp=ref_tg_${user?.id || 'demo123'}`;
 
   const MILESTONES = [
-    { id: 'm1', target: 3, rewardUsdt: 1, rewardRate: 0.05 },
-    { id: 'm2', target: 10, rewardUsdt: 5, rewardRate: 0.10 },
-    { id: 'm3', target: 25, rewardUsdt: 15, rewardRate: 0.20 },
-    { id: 'm4', target: 50, rewardUsdt: 50, rewardRate: 0.50 },
-    { id: 'm5', target: 100, rewardUsdt: 150, rewardRate: 1.0 },
+    { id: 'm1', target: 3, rewardUsdt: 0.3, rewardRate: 0.05 },
+    { id: 'm2', target: 10, rewardUsdt: 1.0, rewardRate: 0.10 },
+    { id: 'm3', target: 25, rewardUsdt: 2.5, rewardRate: 0.20 },
+    { id: 'm4', target: 50, rewardUsdt: 5.0, rewardRate: 0.50 },
+    { id: 'm5', target: 100, rewardUsdt: 10.0, rewardRate: 1.0 },
   ];
 
   const fetchReferrals = async () => {
@@ -144,9 +144,9 @@ export function ReferralsTab() {
           <div className="absolute top-1/2 right-0 -translate-y-1/2 w-24 h-24 bg-emerald-500/20 blur-2xl rounded-full"></div>
           
           <div className="mb-4 relative z-10">
-            <h2 className="text-lg font-black tracking-tight mb-1">Invite & Earn 0.5 USDT</h2>
+            <h2 className="text-lg font-black tracking-tight mb-1">Invite & Earn 0.7 USDT</h2>
             <p className="text-[11px] text-slate-300 font-medium leading-relaxed mb-4">
-              Get <strong className="text-emerald-400">0.5 USDT</strong> and <strong className="text-emerald-400">+0.02 USDT/day</strong> mining boost for every friend who joins via your link!
+              Get <strong className="text-emerald-400">0.7 USDT</strong> and <strong className="text-emerald-400">+0.02 USDT/day</strong> mining boost for every friend who joins via your link!
             </p>
             <div className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/10">
               <p className="text-xs font-mono truncate text-slate-200">{referralLink}</p>
@@ -269,7 +269,7 @@ export function ReferralsTab() {
                     </div>
                   </div>
                   <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
-                    +0.5 USDT
+                    +0.7 USDT
                   </div>
                 </div>
               ))}

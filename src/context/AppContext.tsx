@@ -220,6 +220,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async () => {
     if (!initData) return;
     try {
+      // Robustly extract start_param (Telegram Mini Apps pass it in initDataUnsafe or tgWebAppStartParam)
+      let startParam = tgData?.start_param || '';
+      
+      if (!startParam) {
+        try {
+          const urlParams = new URLSearchParams(window.location.search || window.location.hash.replace('#', '?'));
+          startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('startapp') || urlParams.get('start') || '';
+        } catch(e) {}
+      }
+
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: {
@@ -227,7 +237,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           'Authorization': initData
         },
         body: JSON.stringify({
-          start_param: tgData?.start_param || ''
+          start_param: startParam
         })
       });
       const data = await res.json();
