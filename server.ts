@@ -19,6 +19,14 @@ const MAX_MINING_RATE = 1500; // 0.15 USDT per day
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MIN_WITHDRAWAL = 20000; // 2 USDT
 
+const MILESTONES = [
+  { id: 'm1', target: 3, rewardUsdt: 3000, rewardRate: 500 }, // 0.3 USDT, +0.05 Rate
+  { id: 'm2', target: 10, rewardUsdt: 10000, rewardRate: 1000 }, // 1.0 USDT, +0.10 Rate
+  { id: 'm3', target: 25, rewardUsdt: 25000, rewardRate: 2000 }, // 2.5 USDT, +0.20 Rate
+  { id: 'm4', target: 50, rewardUsdt: 50000, rewardRate: 5000 }, // 5.0 USDT, +0.50 Rate
+  { id: 'm5', target: 100, rewardUsdt: 100000, rewardRate: 10000 }, // 10.0 USDT, +1.0 Rate
+];
+
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
   if (process.env.NODE_ENV === 'development' || BOT_TOKEN === 'mock_token') {
@@ -76,12 +84,12 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     // Check for referral
     const ref = req.body.start_param;
     let referredBy = null;
-    if (ref && ref.startsWith('ref_tg_')) {
-      referredBy = ref.replace('ref_tg_', '');
+    if (ref) {
+      referredBy = ref.toString().replace('ref_tg_', '');
     }
 
     const WELCOME_BONUS = 7000; // 0.7 USDT
-    const REFERRER_REWARD = 7000; // 0.7 USDT
+    const REFERRER_REWARD = 0; // Sender gets 0 USDT, ONLY new user gets 0.7 USDT (claimed via bottom sheet)
     const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
 
     // Atomic Database Transaction for Registration + Referral
@@ -92,14 +100,9 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       if (referredBy && referredBy !== userId) {
         const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
         if (referrer) {
-          // Grant Welcome Bonus
-          balanceInit = WELCOME_BONUS;
-          totalEarnedInit = WELCOME_BONUS;
-
-          // Grant Referrer Bonus
+          // Do NOT grant welcome bonus automatically now, they claim it on frontend.
+          // Grant Referrer Mining Rate Boost only
           await tx.update(users).set({
-            balance: referrer.balance + REFERRER_REWARD,
-            totalEarned: referrer.totalEarned + REFERRER_REWARD,
             miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE)
           }).where(eq(users.id, referredBy));
           
@@ -119,10 +122,10 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
         username: tgUser.username || '',
         firstName: tgUser.first_name || '',
         photoUrl: tgUser.photo_url || '',
-        referralCode: `ref_tg_${userId}`,
+        referralCode: userId,
         referredBy,
-        balance: balanceInit,
-        totalEarned: totalEarnedInit,
+        balance: 0, // Starts at 0, must claim 0.7 USDT via bottom sheet
+        totalEarned: 0,
         miningRate: BASE_MINING_RATE,
         claimedMilestones: '[]'
       }).returning().get();
@@ -139,9 +142,20 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     user = await db.select().from(users).where(eq(users.id, userId)).get();
   }
 
-  // Count referrals and calculate earned bonus
+  // Count referrals and calculate earned bonus from claimed milestones
   const userReferrals = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).all();
-  const referralBonusEarned = userReferrals.length * 5000; // 0.10 USDT per referral
+  
+  let referralBonusEarned = 0;
+  try {
+    const claimedArr = JSON.parse(user.claimedMilestones || '[]');
+    for (const milestoneId of claimedArr) {
+      if (milestoneId === 'welcome_claimed') continue; // exclude registration bonus
+      const ms = MILESTONES.find(m => m.id === milestoneId);
+      if (ms) {
+        referralBonusEarned += ms.rewardUsdt;
+      }
+    }
+  } catch (e) {}
 
   // Tasks completed in the last 24 hours
   const now = Date.now();
@@ -302,13 +316,7 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   res.json({ friends: friendDetails });
 });
 
-const MILESTONES = [
-  { id: 'm1', target: 3, rewardUsdt: 3000, rewardRate: 500 }, // 0.3 USDT, +0.05 Rate
-  { id: 'm2', target: 10, rewardUsdt: 10000, rewardRate: 1000 }, // 1.0 USDT, +0.10 Rate
-  { id: 'm3', target: 25, rewardUsdt: 25000, rewardRate: 2000 }, // 2.5 USDT, +0.20 Rate
-  { id: 'm4', target: 50, rewardUsdt: 50000, rewardRate: 5000 }, // 5.0 USDT, +0.50 Rate
-  { id: 'm5', target: 100, rewardUsdt: 100000, rewardRate: 10000 }, // 10.0 USDT, +1.0 Rate
-];
+// Milestones handled at the top of the file
 
 app.post('/api/referrals/milestone', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
@@ -343,6 +351,39 @@ app.post('/api/referrals/milestone', requireUser, async (req: any, res: any) => 
       balance: user.balance + milestone.rewardUsdt,
       totalEarned: user.totalEarned + milestone.rewardUsdt,
       miningRate: newRate,
+      claimedMilestones: JSON.stringify(claimedMilestones)
+    }).where(eq(users.id, userId));
+  });
+
+  const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
+  res.json({ success: true, user: updatedUser });
+});
+
+app.post('/api/referrals/claim-welcome', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (!user.referredBy) {
+    return res.status(400).json({ error: 'No referral associated with this account' });
+  }
+
+  let claimedMilestones: string[] = [];
+  try {
+    claimedMilestones = JSON.parse(user.claimedMilestones || '[]');
+  } catch (e) {}
+
+  if (claimedMilestones.includes('welcome_claimed')) {
+    return res.status(400).json({ error: 'Welcome bonus already claimed' });
+  }
+
+  claimedMilestones.push('welcome_claimed');
+  const WELCOME_BONUS = 7000; // 0.7 USDT
+
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({
+      balance: user.balance + WELCOME_BONUS,
+      totalEarned: user.totalEarned + WELCOME_BONUS,
       claimedMilestones: JSON.stringify(claimedMilestones)
     }).where(eq(users.id, userId));
   });

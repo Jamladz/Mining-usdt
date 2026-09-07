@@ -22,16 +22,6 @@ export function Header({ title }: { title: string }) {
         <div className="bg-slate-100/80 px-2.5 py-1 rounded-full border border-slate-200/50">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{title}</span>
         </div>
-        
-        {canFullscreen && (
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={toggleFullscreen}
-            className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition-colors"
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          </motion.button>
-        )}
       </div>
     </header>
   );
