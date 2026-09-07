@@ -31,7 +31,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-[var(--tg-viewport-stable-height,100dvh)] bg-[#F5F7F9] text-slate-900 pb-[calc(60px+var(--tg-safe-area-inset-bottom,0px))] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden flex flex-col">
+    <div className="min-h-[var(--tg-viewport-stable-height,100dvh)] bg-[#F5F7F9] text-slate-900 pt-[var(--tg-safe-area-inset-top,0px)] pb-[calc(60px+var(--tg-safe-area-inset-bottom,0px))] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden flex flex-col">
       <main className="w-full flex-1 overflow-y-auto overflow-x-hidden relative">
         <AnimatePresence mode="wait">
           {currentTab === 'home' && (

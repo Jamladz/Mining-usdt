@@ -12,6 +12,7 @@ export interface TelegramUser {
 interface WebApp {
   initData: string;
   version: string;
+  platform: string;
   isVersionAtLeast: (version: string) => boolean;
   initDataUnsafe: {
     query_id?: string;
@@ -21,6 +22,7 @@ interface WebApp {
     start_param?: string;
   };
   expand: () => void;
+  isExpanded: boolean;
   ready: () => void;
   openTelegramLink: (url: string) => void;
   requestFullscreen: () => void;
@@ -32,7 +34,16 @@ interface WebApp {
   unlockOrientation: () => void;
   checkHomeScreenStatus: () => void;
   addToHomeScreen: () => void;
+  safeAreaInset?: { top: number; bottom: number; left: number; right: number };
+  contentSafeAreaInset?: { top: number; bottom: number; left: number; right: number };
   MainButton: any;
+  BackButton: {
+    isVisible: boolean;
+    onClick: (callback: Function) => void;
+    offClick: (callback: Function) => void;
+    show: () => void;
+    hide: () => void;
+  };
   HapticFeedback: {
     impactOccurred: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void;
     notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
@@ -51,6 +62,8 @@ declare global {
 interface AppContextType {
   tgData: WebApp['initDataUnsafe'] | null;
   initData: string | null;
+  tgVersion: string;
+  tgPlatform: string;
   user: any | null; // Database user object
   fetchUser: () => Promise<void>;
   isFullscreen: boolean;
@@ -59,6 +72,8 @@ interface AppContextType {
   homeScreenStatus: 'unsupported' | 'unknown' | 'added' | 'missed' | 'checking';
   canAddToHomeScreen: boolean;
   addToHomeScreen: () => void;
+  safeAreaSupported: boolean;
+  contentSafeAreaSupported: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -66,6 +81,10 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [tgData, setTgData] = useState<WebApp['initDataUnsafe'] | null>(null);
   const [initData, setInitData] = useState<string | null>(null);
+  const [tgVersion, setTgVersion] = useState<string>('unknown');
+  const [tgPlatform, setTgPlatform] = useState<string>('unknown');
+  const [safeAreaSupported, setSafeAreaSupported] = useState<boolean>(false);
+  const [contentSafeAreaSupported, setContentSafeAreaSupported] = useState<boolean>(false);
   const [user, setUser] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [canFullscreen, setCanFullscreen] = useState(false);
@@ -79,6 +98,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       webApp.expand();
       setTgData(webApp.initDataUnsafe);
       setInitData(webApp.initData || 'mock_init_data');
+      setTgVersion(webApp.version || 'unknown');
+      setTgPlatform(webApp.platform || 'unknown');
+      
+      // Check safe areas
+      if (webApp.safeAreaInset !== undefined) {
+        setSafeAreaSupported(true);
+      }
+      if (webApp.contentSafeAreaInset !== undefined) {
+        setContentSafeAreaSupported(true);
+      }
       
       let cleanupFullscreen: (() => void) | undefined;
       let cleanupHomeScreen: (() => void) | undefined;
@@ -103,6 +132,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             webApp.offEvent('fullscreenChanged', handleFullscreenChange);
             webApp.offEvent('fullscreenFailed', handleFullscreenFailed);
           };
+
+          // Automatically request fullscreen on app start
+          if (!webApp.isFullscreen) {
+            webApp.requestFullscreen();
+          }
         } catch (e) {
           console.warn('Fullscreen not supported on this version:', e);
           setCanFullscreen(false);
@@ -226,7 +260,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [initData]);
 
   return (
-    <AppContext.Provider value={{ tgData, initData, user, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen }}>
+    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported }}>
       {children}
     </AppContext.Provider>
   );

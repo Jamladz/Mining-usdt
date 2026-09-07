@@ -7,6 +7,8 @@ import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
+import { TelegramSettings } from '../components/TelegramSettings';
+
 const MIN_WITHDRAWAL = 2;
 
 export function ProfileTab() {
@@ -109,37 +111,10 @@ export function ProfileTab() {
           </div>
         </motion.div>
 
-        {/* App Settings / Home Screen */}
-        {homeScreenStatus !== 'unsupported' && homeScreenStatus !== 'unknown' && homeScreenStatus !== 'checking' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-[24px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600 border border-slate-100">
-                {homeScreenStatus === 'added' ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <BookmarkPlus className="w-5 h-5" />}
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[13px] font-black text-slate-900 tracking-tight">Home Screen</span>
-                <span className="text-[10px] font-medium text-slate-400">Quick app access</span>
-              </div>
-            </div>
-            
-            <button
-              onClick={addToHomeScreen}
-              disabled={homeScreenStatus === 'added' || !canAddToHomeScreen}
-              className={cn(
-                "px-4 py-2.5 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all shadow-sm",
-                homeScreenStatus === 'added' 
-                  ? "bg-emerald-50 text-emerald-600 border border-emerald-100 opacity-80"
-                  : "bg-slate-900 text-white hover:bg-slate-800 shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
-              )}
-            >
-              {homeScreenStatus === 'added' ? 'Added' : 'Add App'}
-            </button>
-          </motion.div>
-        )}
+        {/* Telegram App Settings */}
+        <div className="mt-4">
+          <TelegramSettings />
+        </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
