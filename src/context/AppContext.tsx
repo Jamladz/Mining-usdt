@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { CheckCircle2, Sparkles } from 'lucide-react';
+import { cn } from '../lib/utils';
 
 export interface TelegramUser {
   id: number;
@@ -75,6 +78,7 @@ interface AppContextType {
   addToHomeScreen: () => void;
   safeAreaSupported: boolean;
   contentSafeAreaSupported: boolean;
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -107,6 +111,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [homeScreenStatus, setHomeScreenStatus] = useState<'unsupported' | 'unknown' | 'added' | 'missed' | 'checking'>('checking');
   const [canAddToHomeScreen, setCanAddToHomeScreen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      try {
+        const haptic = window.Telegram.WebApp.HapticFeedback;
+        if (type === 'success') {
+          haptic.notificationOccurred('success');
+        } else if (type === 'error') {
+          haptic.notificationOccurred('error');
+        } else {
+          haptic.impactOccurred('light');
+        }
+      } catch (e) {}
+    }
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (window.Telegram?.WebApp) {
@@ -261,10 +289,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (data.user) {
-        setUser({ 
+        const newUser = { 
           ...data.user, 
           referralsCount: data.referralsCount || 0,
           referralBonusEarned: data.referralBonusEarned || 0 
+        };
+
+        // Welcome reward notification
+        let claimedArr: string[] = [];
+        try {
+          claimedArr = JSON.parse(newUser.claimedMilestones || '[]');
+        } catch (e) {}
+
+        if (claimedArr.includes('welcome_claimed')) {
+          const alreadyNotified = localStorage.getItem('notified_welcome_bonus');
+          if (!alreadyNotified) {
+            showToast('🎉 تهانينا! لقد حصلت على هدية ترحيبية بقيمة 0.7 USDT مجاناً!', 'success');
+            localStorage.setItem('notified_welcome_bonus', 'true');
+          }
+        }
+
+        // Referral count increase notification
+        setUser((prevUser: any) => {
+          if (prevUser && newUser.referralsCount > prevUser.referralsCount) {
+            const diff = newUser.referralsCount - prevUser.referralsCount;
+            // Timeout to let the screen load beautifully
+            setTimeout(() => {
+              showToast(`🎉 رائِع! قام صديق بالتسجيل من خلال رابطك. تم إيداع 0.1 USDT مكافأة فورية وزيادة سرعة التعدين!`, 'success');
+            }, 1000);
+          }
+          return newUser;
         });
       }
     } catch (e) {
@@ -295,8 +349,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [initData]);
 
   return (
-    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, setUser, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported }}>
+    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, setUser, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported, showToast }}>
       {children}
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={cn(
+              "fixed bottom-24 left-4 right-4 z-50 p-4 rounded-xl shadow-xl border flex items-center gap-3 backdrop-blur-md",
+              toast.type === 'success' 
+                ? "bg-emerald-600/95 text-white border-emerald-500" 
+                : toast.type === 'error'
+                  ? "bg-rose-600/95 text-white border-rose-500"
+                  : "bg-slate-900/95 text-white border-slate-800"
+            )}
+          >
+            {toast.type === 'success' ? (
+              <Sparkles className="w-5 h-5 flex-shrink-0 text-amber-300 animate-pulse" />
+            ) : toast.type === 'error' ? (
+              <span className="text-base flex-shrink-0">⚠️</span>
+            ) : (
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-white" />
+            )}
+            <p className="text-xs font-bold tracking-tight flex-1 text-white">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="text-white/60 hover:text-white text-xs font-black px-1.5 py-0.5 rounded">
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AppContext.Provider>
   );
 }

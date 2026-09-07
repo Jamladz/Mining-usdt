@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt, desc, sql } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 
 const app = express();
@@ -445,6 +445,38 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   }));
 
   res.json({ friends: friendDetails });
+});
+
+app.get('/api/referrals/leaderboard', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  try {
+    const topReferrers = await db.select({
+      referrerId: referrals.referrerId,
+      count: sql<number>`count(${referrals.id})`
+    })
+    .from(referrals)
+    .groupBy(referrals.referrerId)
+    .orderBy(desc(sql`count(${referrals.id})`))
+    .limit(20)
+    .all();
+
+    const leaderboard = await Promise.all(topReferrers.map(async (row) => {
+      const userDetail = await db.select().from(users).where(eq(users.id, row.referrerId)).get();
+      return {
+        id: row.referrerId,
+        username: userDetail?.username || 'Anonymous',
+        firstName: userDetail?.firstName || 'User',
+        photoUrl: userDetail?.photoUrl || '',
+        referralsCount: row.count,
+        isCurrentUser: row.referrerId === userId
+      };
+    }));
+
+    res.json({ leaderboard });
+  } catch (err) {
+    console.error('[LEADERBOARD ERROR]', err);
+    res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
 });
 
 // Milestones handled at the top of the file
