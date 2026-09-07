@@ -126,7 +126,7 @@ export function TasksTab() {
     let blockId = '';
 
     if (task.id === 'adsgram_reward') {
-      blockId = 'int-46657'; // Adsgram Reward Block ID
+      blockId = 'vid-46657'; // Adsgram Reward Block ID
     } else if (task.id === 'adsgram_interstitial') {
       blockId = 'int-46658'; // Adsgram Interstitial Block ID
       const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
@@ -134,7 +134,7 @@ export function TasksTab() {
       if (nextNum > 5) return;
       finalTaskId = `adsgram_interstitial_${nextNum}`;
     } else if (task.id === 'adsgram_task') {
-      blockId = 'int-46660'; // Adsgram Task Block ID
+      blockId = 'task-46660'; // Adsgram Task Block ID
     }
 
     if (task.action) {
