@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { USDT } from '../components/USDT';
 import { useApp } from '../context/AppContext';
-import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift } from 'lucide-react';
+import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift, BookmarkPlus } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -11,10 +11,12 @@ interface Task {
   title: string;
   provider: 'monetag' | 'adsgram' | 'system';
   icon: React.ReactNode;
+  rewardValue?: string;
+  action?: () => void;
 }
 
 export function TasksTab() {
-  const { user, setUser, fetchUser, initData } = useApp();
+  const { user, setUser, fetchUser, initData, addToHomeScreen, homeScreenStatus, canAddToHomeScreen } = useApp();
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
 
@@ -26,17 +28,23 @@ export function TasksTab() {
 
   const handleTaskClick = async (task: Task) => {
     if (loadingTask || completedTasks.includes(task.id)) return;
+    
+    // Execute custom action if provided (like addToHomeScreen)
+    if (task.action) {
+      task.action();
+    }
+
     setLoadingTask(task.id);
     
     setTimeout(async () => {
       try {
-        const res = await fetch('/api/task/complete', {
+        const res = await fetch('/api/tasks/complete', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': initData || ''
           },
-          body: JSON.stringify({ taskId: task.id })
+          body: JSON.stringify({ taskId: task.id, provider: task.provider })
         });
         
         const data = await res.json();
@@ -51,9 +59,11 @@ export function TasksTab() {
         setCompletedTasks(prev => {
           const newTasks = [...prev, task.id];
           if (user) {
+            const rewardRateBoost = task.id === 'sys_add_home' ? 500 : 100;
             setUser({ 
               ...user, 
-              balance: (user.balance || 0) + 1, // Simulate 1 USDT reward
+              balance: (user.balance || 0) + 1, // Simulate reward
+              miningRate: (user.miningRate || 0) + rewardRateBoost, // Simulate boost
               completedTasks: JSON.stringify(newTasks)
             });
           }
@@ -76,12 +86,29 @@ export function TasksTab() {
   ];
 
   const sysTasks: Task[] = [
-    { id: 'sys_daily', title: 'Daily Check-in', provider: 'system', icon: <Gift className="w-5 h-5" /> }
+    { id: 'sys_daily', title: 'Daily Check-in', provider: 'system', icon: <Gift className="w-5 h-5" /> },
+    { 
+      id: 'sys_add_home', 
+      title: 'Add to Home Screen', 
+      provider: 'system', 
+      icon: <BookmarkPlus className="w-5 h-5" />,
+      rewardValue: '0.05',
+      action: addToHomeScreen
+    }
   ];
 
+  // Filter out the home screen task if it's explicitly unsupported and not already completed
+  const activeSysTasks = sysTasks.filter(t => {
+    if (t.id === 'sys_add_home' && homeScreenStatus === 'unsupported' && !completedTasks.includes('sys_add_home')) {
+      return false; // Hide if completely unsupported on their device
+    }
+    return true;
+  });
+
   const renderTask = (task: Task, index: number) => {
-    const isCompleted = completedTasks.includes(task.id);
+    const isCompleted = completedTasks.includes(task.id) || (task.id === 'sys_add_home' && homeScreenStatus === 'added');
     const isLoading = loadingTask === task.id;
+    const reward = task.rewardValue || '0.01';
     
     return (
       <motion.div 
@@ -105,7 +132,9 @@ export function TasksTab() {
           </div>
           <div className="flex flex-col min-w-0 justify-center">
             <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
-            <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1", isCompleted ? "text-slate-400" : "text-emerald-600")}>+0.01 <USDT size="text-[9px]" iconSize="w-3 h-3" /> / 24H</p>
+            <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1", isCompleted ? "text-slate-400" : "text-emerald-600")}>
+              +{reward} <USDT size="text-[9px]" iconSize="w-3 h-3" /> / 24H
+            </p>
           </div>
         </div>
         
@@ -125,10 +154,12 @@ export function TasksTab() {
               key="start"
               whileTap={{ scale: 0.95 }}
               onClick={() => handleTaskClick(task)}
-              disabled={isLoading}
+              disabled={isLoading || (task.id === 'sys_add_home' && !canAddToHomeScreen)}
               className={cn(
                 "flex-shrink-0 px-3 py-1.5 text-[10px] font-black rounded-lg whitespace-nowrap transition-colors",
-                isLoading ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+                isLoading || (task.id === 'sys_add_home' && !canAddToHomeScreen) 
+                  ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                  : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
               )}
             >
               {isLoading ? '...' : 'START'}
@@ -160,26 +191,26 @@ export function TasksTab() {
         <div className="space-y-6">
           <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
             <div className="flex items-center gap-2 mb-3 px-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">System Bonuses</h3>
+            </div>
+            {activeSysTasks.map((t, i) => renderTask(t, i))}
+          </motion.section>
+
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+            <div className="flex items-center gap-2 mb-3 px-1">
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
             </div>
             {monetagTasks.map((t, i) => renderTask(t, i))}
           </motion.section>
 
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
             <div className="flex items-center gap-2 mb-3 px-1">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>
             </div>
             {adsgramTasks.map((t, i) => renderTask(t, i))}
-          </motion.section>
-
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">System Bonuses</h3>
-            </div>
-            {sysTasks.map((t, i) => renderTask(t, i))}
           </motion.section>
         </div>
       </div>

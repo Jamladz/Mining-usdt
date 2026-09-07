@@ -24,7 +24,7 @@ function AppContent() {
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           className="relative"
         >
-          <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" className="w-16 h-16 object-contain drop-shadow-2xl" />
+          <img src="https://i.ibb.co/HLT6ZFck/file-00000000a24c81f4a775591b812d2228.png" alt="Mining usdt" className="w-24 h-24 object-contain drop-shadow-2xl" />
         </motion.div>
       </div>
     );

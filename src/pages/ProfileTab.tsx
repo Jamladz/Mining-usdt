@@ -7,7 +7,6 @@ import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
-import { TelegramSettings } from '../components/TelegramSettings';
 
 const MIN_WITHDRAWAL = 2;
 
@@ -126,11 +125,6 @@ export function ProfileTab() {
             </div>
           </div>
         </motion.div>
-
-        {/* Telegram App Settings */}
-        <div className="mt-4">
-          <TelegramSettings />
-        </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">

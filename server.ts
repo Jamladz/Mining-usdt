@@ -196,7 +196,11 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   if (!user) return res.status(404).json({ error: 'User not found' });
 
   // Moderate boost: +10% of base rate
-  const boostAmount = 100; // +0.01 USDT
+  let boostAmount = 100; // +0.01 USDT
+  if (taskId === 'sys_add_home') {
+    boostAmount = 500; // +0.05 USDT
+  }
+  
   const newRate = Math.min(user.miningRate + boostAmount, MAX_MINING_RATE);
 
   await db.transaction(async (tx) => {
