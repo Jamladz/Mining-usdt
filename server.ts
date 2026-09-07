@@ -67,8 +67,22 @@ const requireUser = async (req: express.Request, res: express.Response, next: ex
     const tgUser = validateInitData(initData);
     if (!tgUser || !tgUser.id) return res.status(401).json({ error: 'Unauthorized' });
     (req as any).user = tgUser;
+    
+    // Extract start_param directly from raw initData query-string as fallback
+    let startParamFallback = '';
+    try {
+      const urlParams = new URLSearchParams(initData);
+      startParamFallback = urlParams.get('start_param') || '';
+    } catch (e) {
+      console.warn('Failed parsing start_param from authorization header:', e);
+    }
+    
+    (req as any).startParamFallback = startParamFallback;
+    console.log(`[AUTH LOGGER] User ID: ${tgUser.id}, Username: ${tgUser.username || 'unknown'}, Header start_param: "${startParamFallback}"`);
+    
     next();
   } catch (err) {
+    console.error('[AUTH ERROR]', err);
     res.status(401).json({ error: 'Unauthorized' });
   }
 };
@@ -106,12 +120,18 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   let user = await db.select().from(users).where(eq(users.id, userId)).get();
   
   if (!user) {
-    // Check for referral
-    const ref = req.body.start_param;
+    // Check for referral with robust prefix clearing and trimming
+    const rawRef = req.body.start_param || req.startParamFallback || '';
     let referredBy = null;
-    if (ref) {
-      referredBy = ref.toString().replace('ref_tg_', '');
+    if (rawRef) {
+      referredBy = rawRef.toString()
+        .replace(/^ref_tg_/, '')
+        .replace(/^ref_/, '')
+        .replace(/^startapp_/, '')
+        .trim();
     }
+
+    console.log(`[REFERRAL DEBUG] New User Registration. ID: ${userId}, Raw start_param: "${rawRef}", Resolved referredBy: "${referredBy}"`);
 
     const WELCOME_BONUS = 7000; // 0.7 USDT
     const REFERRER_REWARD = 0; // Sender gets 0 USDT, ONLY new user gets 0.7 USDT (claimed via bottom sheet)
@@ -125,8 +145,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       if (referredBy && referredBy !== userId) {
         const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
         if (referrer) {
-          // Do NOT grant welcome bonus automatically now, they claim it on frontend.
-          // Grant Referrer Mining Rate Boost only
+          // Grant Referrer Mining Rate Boost
           await tx.update(users).set({
             miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE)
           }).where(eq(users.id, referredBy));
@@ -137,7 +156,9 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
             rewardStatus: 'paid',
             createdAt: Date.now()
           });
+          console.log(`[REFERRAL SUCCESS] Recorded referral for referrer: ${referredBy} -> referred user: ${userId}`);
         } else {
+            console.log(`[REFERRAL WARN] Referrer ${referredBy} not found in database. Ignoring referral.`);
             referredBy = null; // Invalid referrer
         }
       }
@@ -158,12 +179,18 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       return newUser;
     });
   } else {
-    // Check if user doesn't have a referrer yet, but start_param is provided now!
-    const ref = req.body.start_param;
+    // Check if user doesn't have a referrer yet, but start_param is provided now (retro-active linking)
+    const rawRef = req.body.start_param || req.startParamFallback || '';
     let referredBy = null;
-    if (ref) {
-      referredBy = ref.toString().replace('ref_tg_', '');
+    if (rawRef) {
+      referredBy = rawRef.toString()
+        .replace(/^ref_tg_/, '')
+        .replace(/^ref_/, '')
+        .replace(/^startapp_/, '')
+        .trim();
     }
+
+    console.log(`[REFERRAL DEBUG] Existing User Auth. ID: ${userId}, Raw start_param: "${rawRef}", Resolved referredBy: "${referredBy}", Current referredBy in DB: "${user.referredBy}"`);
 
     let updatedFields: any = {
       username: tgUser.username || user.username,
@@ -178,7 +205,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
         const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
         const MAX_MINING_RATE = 1500; // 0.15 USDT per day
 
-        // Check if referral record already exists
+        // Check if referral record already exists to prevent duplicate entries
         const existingReferral = await db.select().from(referrals)
           .where(
             and(
@@ -207,7 +234,10 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
           // Set referredBy on current user
           updatedFields.referredBy = referredBy;
+          console.log(`[REFERRAL SUCCESS] Retroactively recorded referral for referrer: ${referredBy} -> referred user: ${userId}`);
         }
+      } else {
+        console.log(`[REFERRAL WARN] Retro-referrer ${referredBy} not found in database. Ignoring.`);
       }
     }
 
