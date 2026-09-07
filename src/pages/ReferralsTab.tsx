@@ -13,7 +13,7 @@ export function ReferralsTab() {
   const [friends, setFriends] = useState<any[]>([]);
   const [claimingMilestone, setClaimingMilestone] = useState<string | null>(null);
   
-  const referralLink = `https://t.me/Miningusdt2027_bot?start=ref_tg_${user?.id || 'demo123'}`;
+  const referralLink = `https://t.me/Miningusdt2027_bot?startapp=ref_tg_${user?.id || 'demo123'}`;
 
   const MILESTONES = [
     { id: 'm1', target: 3, rewardUsdt: 1, rewardRate: 0.05 },
