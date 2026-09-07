@@ -158,12 +158,61 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       return newUser;
     });
   } else {
-    // Update profile pic/name if changed
-    await db.update(users).set({
+    // Check if user doesn't have a referrer yet, but start_param is provided now!
+    const ref = req.body.start_param;
+    let referredBy = null;
+    if (ref) {
+      referredBy = ref.toString().replace('ref_tg_', '');
+    }
+
+    let updatedFields: any = {
       username: tgUser.username || user.username,
       firstName: tgUser.first_name || user.firstName,
       photoUrl: tgUser.photo_url || user.photoUrl,
-    }).where(eq(users.id, userId));
+    };
+
+    if (referredBy && referredBy !== userId && !user.referredBy) {
+      // Validate referrer exists
+      const referrer = await db.select().from(users).where(eq(users.id, referredBy)).get();
+      if (referrer) {
+        const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
+        const MAX_MINING_RATE = 1500; // 0.15 USDT per day
+
+        // Check if referral record already exists
+        const existingReferral = await db.select().from(referrals)
+          .where(
+            and(
+              eq(referrals.referrerId, referredBy),
+              eq(referrals.referredUserId, userId)
+            )
+          )
+          .get();
+
+        if (!existingReferral) {
+          // Perform in transaction to keep atomic
+          await db.transaction(async (tx) => {
+            // Update referrer rate boost
+            await tx.update(users).set({
+              miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE)
+            }).where(eq(users.id, referredBy));
+
+            // Record the referral
+            await tx.insert(referrals).values({
+              referrerId: referredBy,
+              referredUserId: userId,
+              rewardStatus: 'paid',
+              createdAt: Date.now()
+            });
+          });
+
+          // Set referredBy on current user
+          updatedFields.referredBy = referredBy;
+        }
+      }
+    }
+
+    // Update profile pic/name & referral if changed
+    await db.update(users).set(updatedFields).where(eq(users.id, userId));
     user = await db.select().from(users).where(eq(users.id, userId)).get();
   }
 

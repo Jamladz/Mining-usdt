@@ -239,8 +239,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async () => {
     if (!initData) return;
     try {
-      // Robustly extract start_param (Telegram Mini Apps pass it in initDataUnsafe or tgWebAppStartParam)
-      let startParam = tgData?.start_param || '';
+      // Robustly extract start_param directly from window.Telegram to avoid React state batching race conditions
+      let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || '';
       
       if (!startParam) {
         try {
