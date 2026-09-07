@@ -20,6 +20,35 @@ export function TasksTab() {
   const [completedTasksList, setCompletedTasksList] = useState<{ taskId: string; completedAt: number }[]>([]);
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    // Attempt Telegram native haptic feedback
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.HapticFeedback) {
+      try {
+        if (type === 'success') {
+          tg.HapticFeedback.notificationOccurred('success');
+        } else if (type === 'error') {
+          tg.HapticFeedback.notificationOccurred('error');
+        } else {
+          tg.HapticFeedback.impactOccurred('medium');
+        }
+      } catch (e) {
+        console.warn('Telegram Haptic Feedback error:', e);
+      }
+    }
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => {
+        setToast(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const triggerBackendTaskCompletion = async (finalTaskId: string, provider: string, rewardRateBoost: number) => {
     const completionObj = { taskId: finalTaskId, completedAt: Date.now() };
@@ -46,8 +75,9 @@ export function TasksTab() {
           });
         }
         await fetchUser();
+        showToast('Task completed successfully! Mining speed boosted.', 'success');
       } else {
-        alert(data.error || 'Failed to complete task');
+        showToast(data.error || 'Failed to complete task', 'error');
       }
     } catch (e) {
       console.warn('Backend not available, using local simulation for task completion');
@@ -62,6 +92,7 @@ export function TasksTab() {
           completedTasks: JSON.stringify(updatedList)
         });
       }
+      showToast('Task completed! Mining speed boosted (Demo Mode).', 'success');
     }
   };
 
@@ -118,31 +149,6 @@ export function TasksTab() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const autoTriggeredRef = useRef(false);
-  useEffect(() => {
-    const showAd = (window as any).show_11747006;
-    const { isCompleted } = getTaskStatus('monetag_inapp_interstitial');
-    
-    if (showAd && !isCompleted && !autoTriggeredRef.current) {
-      autoTriggeredRef.current = true;
-      console.log('Automatically triggering background Monetag In-App Interstitial');
-      showAd({
-        type: 'inApp',
-        inAppSettings: {
-          frequency: 2,
-          capping: 0.1,
-          interval: 30,
-          timeout: 5,
-          everyPage: false
-        }
-      }).then(() => {
-        triggerBackendTaskCompletion('monetag_inapp_interstitial', 'monetag', 100);
-      }).catch((err: any) => {
-        console.warn('Automatic Monetag In-App Interstitial error:', err);
-      });
-    }
-  }, [completedTasksList]);
 
   const getTaskStatus = (taskId: string) => {
     if (taskId === 'sys_add_home' && homeScreenStatus === 'added') {
@@ -204,7 +210,7 @@ export function TasksTab() {
       return {
         isCompleted: status.isCompleted,
         timeLeft: status.timeLeft,
-        subLabel: 'Watch a rewarded advertisement and receive your reward.'
+        subLabel: 'Watch a rewarded advertisement.'
       };
     }
 
@@ -213,7 +219,7 @@ export function TasksTab() {
       return {
         isCompleted: status.isCompleted,
         timeLeft: status.timeLeft,
-        subLabel: 'Watch the advertisement and receive your reward.'
+        subLabel: 'Watch the advertisement popup.'
       };
     }
 
@@ -222,7 +228,7 @@ export function TasksTab() {
       return {
         isCompleted: status.isCompleted,
         timeLeft: status.timeLeft,
-        subLabel: 'Background ads load automatically.'
+        subLabel: 'Watch an in-app interstitial ad.'
       };
     }
     
@@ -242,10 +248,18 @@ export function TasksTab() {
     // Ignore native Adsgram Task since it has its own HTML element handling
     if (task.id === 'adsgram_task') return;
 
+    // Trigger Telegram click haptic feedback
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.HapticFeedback) {
+      try {
+        tg.HapticFeedback.impactOccurred('light');
+      } catch (e) {}
+    }
+
     if (task.provider === 'monetag') {
       const showAd = (window as any).show_11747006;
       if (!showAd) {
-        alert('Monetag Ad SDK is currently unavailable. Please check your internet connection or disable ad blockers.');
+        showToast('Monetag SDK is loaded but currently unavailable. Please check your connection or disable ad blockers.', 'error');
         return;
       }
 
@@ -257,7 +271,7 @@ export function TasksTab() {
           await triggerBackendTaskCompletion('monetag_rewarded_interstitial', 'monetag', 300);
         } catch (error) {
           console.warn('Monetag Rewarded Interstitial error/dismissed:', error);
-          alert('You must watch the advertisement completely to claim your reward!');
+          showToast('You must watch the advertisement completely to claim your reward!', 'error');
         } finally {
           setLoadingTask(null);
         }
@@ -267,7 +281,7 @@ export function TasksTab() {
           await triggerBackendTaskCompletion('monetag_rewarded_popup', 'monetag', 200);
         } catch (error) {
           console.warn('Monetag Rewarded Popup error/dismissed:', error);
-          alert('You must interact with the advertisement completely to claim your reward!');
+          showToast('You must interact with the advertisement completely to claim your reward!', 'error');
         } finally {
           setLoadingTask(null);
         }
@@ -286,7 +300,7 @@ export function TasksTab() {
           await triggerBackendTaskCompletion('monetag_inapp_interstitial', 'monetag', 100);
         } catch (error) {
           console.warn('Monetag In-App Interstitial error/dismissed:', error);
-          alert('Failed to show the in-app interstitial. Please try again!');
+          showToast('Failed to show the in-app interstitial. Please try again!', 'error');
         } finally {
           setLoadingTask(null);
         }
@@ -328,7 +342,7 @@ export function TasksTab() {
           console.log('Adsgram Ad completed successfully');
         } catch (error: any) {
           console.warn('Adsgram Ad closed, skipped, or failed:', error);
-          alert('You must watch the ad completely to claim your reward!');
+          showToast('You must watch the ad completely to claim your reward!', 'error');
           setLoadingTask(null);
           return;
         }
@@ -478,14 +492,20 @@ export function TasksTab() {
               key="done"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-end gap-0.5"
+              className="flex flex-col items-end"
             >
-              <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg font-black text-[9px] border border-emerald-100/50">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>DONE</span>
+              <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50/80 px-2.5 py-1 rounded-full font-black text-[9px] border border-emerald-100/60 shadow-[0_1px_5px_rgba(16,185,129,0.05)]">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                <span>COMPLETED</span>
               </div>
               {task.id !== 'sys_add_home' && timeLeft > 0 && (
-                <span className="text-[8px] font-mono font-bold text-slate-400">Resets in {formatCountdown(timeLeft)}</span>
+                <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-500"></span>
+                  </span>
+                  <span>RESETS IN {formatCountdown(timeLeft)}</span>
+                </div>
               )}
             </motion.div>
           ) : (
@@ -553,6 +573,31 @@ export function TasksTab() {
           </motion.section>
         </div>
       </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={cn(
+              "fixed bottom-20 left-4 right-4 z-50 p-4 rounded-xl shadow-lg border flex items-center gap-3 backdrop-blur-md",
+              toast.type === 'success' 
+                ? "bg-emerald-600/95 text-white border-emerald-500" 
+                : toast.type === 'error'
+                  ? "bg-rose-600/95 text-white border-rose-500"
+                  : "bg-slate-900/95 text-white border-slate-850"
+            )}
+          >
+            {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-white animate-bounce" />}
+            {toast.type === 'error' && <span className="text-base flex-shrink-0">⚠️</span>}
+            <p className="text-[11px] font-extrabold tracking-tight flex-1">{toast.message}</p>
+            <button onClick={() => setToast(null)} className="text-white/60 hover:text-white text-[10px] font-black px-1.5 py-0.5 rounded">
+              ✕
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
