@@ -32,26 +32,26 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-[var(--tg-viewport-stable-height,100dvh)] bg-[#F5F7F9] text-slate-900 pt-[var(--tg-safe-area-inset-top,0px)] pb-[calc(60px+var(--tg-safe-area-inset-bottom,0px))] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden flex flex-col">
-      <main className="w-full flex-1 overflow-y-auto overflow-x-hidden relative">
+    <div className="h-[var(--tg-viewport-stable-height,100dvh)] bg-[#F5F7F9] text-slate-900 pt-[var(--tg-safe-area-inset-top,0px)] pb-[calc(60px+var(--tg-safe-area-inset-bottom,0px))] font-sans max-w-md mx-auto relative shadow-2xl overflow-hidden flex flex-col">
+      <main className="w-full flex-1 overflow-hidden relative flex flex-col">
         <AnimatePresence mode="wait">
           {currentTab === 'home' && (
-            <motion.div key="home" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <motion.div key="home" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <HomeTab />
             </motion.div>
           )}
           {currentTab === 'tasks' && (
-            <motion.div key="tasks" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <motion.div key="tasks" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <TasksTab />
             </motion.div>
           )}
           {currentTab === 'referrals' && (
-            <motion.div key="referrals" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <motion.div key="referrals" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <ReferralsTab />
             </motion.div>
           )}
           {currentTab === 'profile' && (
-            <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+            <motion.div key="profile" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <ProfileTab />
             </motion.div>
           )}

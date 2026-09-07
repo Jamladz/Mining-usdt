@@ -17,17 +17,71 @@ interface Task {
 
 export function TasksTab() {
   const { user, setUser, fetchUser, initData, addToHomeScreen, homeScreenStatus, canAddToHomeScreen } = useApp();
-  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
+  const [completedTasksList, setCompletedTasksList] = useState<{ taskId: string; completedAt: number }[]>([]);
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
 
   useEffect(() => {
     if (user?.completedTasks) {
-      setCompletedTasks(JSON.parse(user.completedTasks));
+      try {
+        const parsed = JSON.parse(user.completedTasks);
+        if (Array.isArray(parsed)) {
+          const normalized = parsed.map(item => {
+            if (typeof item === 'string') {
+              // Backward compatibility: assume completed 12 hours ago
+              return { taskId: item, completedAt: Date.now() - 12 * 60 * 60 * 1000 };
+            }
+            return item;
+          });
+          setCompletedTasksList(normalized);
+        } else {
+          setCompletedTasksList([]);
+        }
+      } catch (e) {
+        console.error('Failed to parse completed tasks:', e);
+        setCompletedTasksList([]);
+      }
+    } else {
+      setCompletedTasksList([]);
     }
   }, [user]);
 
+  // Tick timer every second to update countdowns
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getTaskStatus = (taskId: string) => {
+    if (taskId === 'sys_add_home' && homeScreenStatus === 'added') {
+      return { isCompleted: true, timeLeft: 24 * 60 * 60 * 1000 }; // Permanently completed or large cooldown
+    }
+    const record = completedTasksList.find(t => t.taskId === taskId);
+    if (!record) return { isCompleted: false, timeLeft: 0 };
+    
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const elapsed = currentTime - record.completedAt;
+    const timeLeft = Math.max(0, ONE_DAY - elapsed);
+    
+    return {
+      isCompleted: timeLeft > 0,
+      timeLeft
+    };
+  };
+
+  const formatCountdown = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const handleTaskClick = async (task: Task) => {
-    if (loadingTask || completedTasks.includes(task.id)) return;
+    const { isCompleted } = getTaskStatus(task.id);
+    if (loadingTask || isCompleted) return;
     
     // Execute custom action if provided (like addToHomeScreen)
     if (task.action) {
@@ -37,6 +91,7 @@ export function TasksTab() {
     setLoadingTask(task.id);
     
     setTimeout(async () => {
+      const completionObj = { taskId: task.id, completedAt: Date.now() };
       try {
         const res = await fetch('/api/tasks/complete', {
           method: 'POST',
@@ -49,26 +104,35 @@ export function TasksTab() {
         
         const data = await res.json();
         if (data.success) {
-          setCompletedTasks(prev => [...prev, task.id]);
+          // Update local state directly with timestamp
+          const updatedList = [...completedTasksList.filter(c => c.taskId !== task.id), completionObj];
+          setCompletedTasksList(updatedList);
+          
+          if (user) {
+            setUser({
+              ...user,
+              miningRate: data.newRate || user.miningRate,
+              completedTasks: JSON.stringify(updatedList)
+            });
+          }
           await fetchUser();
         } else {
           alert(data.error || 'Failed to complete task');
         }
       } catch (e) {
         console.warn('Backend not available, using local simulation for task completion');
-        setCompletedTasks(prev => {
-          const newTasks = [...prev, task.id];
-          if (user) {
-            const rewardRateBoost = task.id === 'sys_add_home' ? 500 : 100;
-            setUser({ 
-              ...user, 
-              balance: (user.balance || 0) + 1, // Simulate reward
-              miningRate: (user.miningRate || 0) + rewardRateBoost, // Simulate boost
-              completedTasks: JSON.stringify(newTasks)
-            });
-          }
-          return newTasks;
-        });
+        const updatedList = [...completedTasksList.filter(c => c.taskId !== task.id), completionObj];
+        setCompletedTasksList(updatedList);
+        
+        if (user) {
+          const rewardRateBoost = task.id === 'sys_add_home' ? 500 : 100;
+          setUser({ 
+            ...user, 
+            balance: (user.balance || 0) + 100, // +0.01 USDT
+            miningRate: (user.miningRate || 0) + rewardRateBoost,
+            completedTasks: JSON.stringify(updatedList)
+          });
+        }
       } finally {
         setLoadingTask(null);
       }
@@ -99,14 +163,15 @@ export function TasksTab() {
 
   // Filter out the home screen task if it's explicitly unsupported and not already completed
   const activeSysTasks = sysTasks.filter(t => {
-    if (t.id === 'sys_add_home' && homeScreenStatus === 'unsupported' && !completedTasks.includes('sys_add_home')) {
+    const { isCompleted } = getTaskStatus(t.id);
+    if (t.id === 'sys_add_home' && homeScreenStatus === 'unsupported' && !isCompleted) {
       return false; // Hide if completely unsupported on their device
     }
     return true;
   });
 
   const renderTask = (task: Task, index: number) => {
-    const isCompleted = completedTasks.includes(task.id) || (task.id === 'sys_add_home' && homeScreenStatus === 'added');
+    const { isCompleted, timeLeft } = getTaskStatus(task.id);
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
     
@@ -142,12 +207,17 @@ export function TasksTab() {
           {isCompleted ? (
             <motion.div 
               key="done"
-              initial={{ opacity: 0, scale: 0.8 }}
+              initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex-shrink-0 flex items-center gap-1 text-slate-400 font-bold text-[10px]"
+              className="flex flex-col items-end gap-0.5"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>DONE</span>
+              <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg font-black text-[9px] border border-emerald-100/50">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>DONE</span>
+              </div>
+              {task.id !== 'sys_add_home' && timeLeft > 0 && (
+                <span className="text-[8px] font-mono font-bold text-slate-400">Resets in {formatCountdown(timeLeft)}</span>
+              )}
             </motion.div>
           ) : (
             <motion.button

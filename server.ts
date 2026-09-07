@@ -73,6 +73,31 @@ const requireUser = async (req: express.Request, res: express.Response, next: ex
   }
 };
 
+async function getFormattedUser(userId: string) {
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) return null;
+
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const recentTasks = await db.select().from(taskCompletions)
+    .where(
+      and(
+        eq(taskCompletions.userId, userId),
+        gt(taskCompletions.completedAt, now - ONE_DAY)
+      )
+    ).all();
+
+  const completedTasksData = recentTasks.map(t => ({
+    taskId: t.taskId,
+    completedAt: t.completedAt
+  }));
+
+  return {
+    ...user,
+    completedTasks: JSON.stringify(completedTasksData)
+  };
+}
+
 // API ROUTES
 app.post('/api/auth', requireUser, async (req: any, res: any) => {
   const tgUser = req.user;
@@ -157,21 +182,10 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     }
   } catch (e) {}
 
-  // Tasks completed in the last 24 hours
-  const now = Date.now();
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-  const recentTasks = await db.select().from(taskCompletions)
-    .where(
-      and(
-        eq(taskCompletions.userId, userId),
-        gt(taskCompletions.completedAt, now - ONE_DAY)
-      )
-    ).all();
-  
-  const completedTaskIds = recentTasks.map(t => t.taskId);
+  const formattedUser = await getFormattedUser(userId);
 
   res.json({ 
-    user: { ...user, completedTasks: JSON.stringify(completedTaskIds) }, 
+    user: formattedUser, 
     referralsCount: userReferrals.length, 
     referralBonusEarned 
   });

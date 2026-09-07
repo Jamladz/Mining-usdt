@@ -44,7 +44,13 @@ export function HomeTab() {
       });
       const data = await res.json();
       if (data.success) {
-        await fetchUser();
+        if (user) {
+          setUser({
+            ...user,
+            balance: data.balance ?? user.balance,
+            lastClaimAt: data.lastClaimAt ?? Date.now()
+          });
+        }
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
@@ -52,9 +58,12 @@ export function HomeTab() {
       }
     } catch (e) {
       console.warn('Backend not available, using local simulation for claim');
-      // Simulate claim locally for demo/static environments
       if (user) {
-        setUser({ ...user, balance: (user.balance || 0) + (user.miningRate || 0) });
+        setUser({ 
+          ...user, 
+          balance: (user.balance || 0) + (user.miningRate || 0),
+          lastClaimAt: Date.now()
+        });
       }
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -74,10 +83,10 @@ export function HomeTab() {
   const progressPercent = timeLeft > 0 ? 100 - (timeLeft / CLAIM_COOLDOWN_MS) * 100 : 100;
 
   return (
-    <div className="flex flex-col h-full bg-[#F5F7F9]">
+    <div className="flex flex-col h-full overflow-hidden bg-[#F5F7F9]">
       <Header title="Home" />
       
-      <div className="p-4 flex flex-col space-y-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-12 flex flex-col space-y-4">
         
         {/* Premium Balance Card */}
         <motion.div 

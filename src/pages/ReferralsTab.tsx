@@ -108,10 +108,10 @@ export function ReferralsTab() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F5F7F9]">
+    <div className="flex flex-col h-full overflow-hidden bg-[#F5F7F9]">
       <Header title="Referrals" />
       
-      <div className="p-4 space-y-4 pb-12">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-12">
         {/* Main Stats */}
         <div className="grid grid-cols-2 gap-3">
           <motion.div 
