@@ -21,6 +21,71 @@ export function TasksTab() {
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
 
+  const triggerBackendTaskCompletion = async (finalTaskId: string, provider: string, rewardRateBoost: number) => {
+    const completionObj = { taskId: finalTaskId, completedAt: Date.now() };
+    try {
+      const res = await fetch('/api/tasks/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': initData || ''
+        },
+        body: JSON.stringify({ taskId: finalTaskId, provider })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
+        setCompletedTasksList(updatedList);
+        
+        if (user) {
+          setUser({
+            ...user,
+            miningRate: data.newRate || user.miningRate,
+            completedTasks: JSON.stringify(updatedList)
+          });
+        }
+        await fetchUser();
+      } else {
+        alert(data.error || 'Failed to complete task');
+      }
+    } catch (e) {
+      console.warn('Backend not available, using local simulation for task completion');
+      const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
+      setCompletedTasksList(updatedList);
+      
+      if (user) {
+        setUser({ 
+          ...user, 
+          balance: (user.balance || 0) + 100, // +0.01 USDT
+          miningRate: (user.miningRate || 0) + rewardRateBoost,
+          completedTasks: JSON.stringify(updatedList)
+        });
+      }
+    }
+  };
+
+  // Listen to adsgram-task custom element rewards
+  useEffect(() => {
+    const el = document.getElementById('adsgram-task-component');
+    if (el) {
+      const handleReward = () => {
+        console.log('Adsgram Task reward triggered!');
+        triggerBackendTaskCompletion('adsgram_task', 'adsgram', 300);
+      };
+      const handleError = (e: any) => {
+        console.warn('Adsgram Task element error:', e);
+      };
+      
+      el.addEventListener('reward', handleReward);
+      el.addEventListener('onError', handleError);
+      return () => {
+        el.removeEventListener('reward', handleReward);
+        el.removeEventListener('onError', handleError);
+      };
+    }
+  }, [completedTasksList]);
+
   useEffect(() => {
     if (user?.completedTasks) {
       try {
@@ -122,19 +187,25 @@ export function TasksTab() {
     const { isCompleted } = getTaskStatusInfo(task.id);
     if (loadingTask || isCompleted) return;
     
+    // Ignore native Adsgram Task since it has its own HTML element handling
+    if (task.id === 'adsgram_task') return;
+
     let finalTaskId = task.id;
     let blockId = '';
+    let rewardRateBoost = 100;
 
     if (task.id === 'adsgram_reward') {
       blockId = '46657'; // Adsgram Reward Block ID (Pure number as string)
+      rewardRateBoost = 200;
     } else if (task.id === 'adsgram_interstitial') {
       blockId = 'int-46658'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
       const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
       const nextNum = completedSubtasks.length + 1;
       if (nextNum > 5) return;
       finalTaskId = `adsgram_interstitial_${nextNum}`;
-    } else if (task.id === 'adsgram_task') {
-      blockId = '46660'; // Adsgram Task Block ID (Pure number as string)
+      rewardRateBoost = 100;
+    } else if (task.id === 'sys_add_home') {
+      rewardRateBoost = 500;
     }
 
     if (task.action) {
@@ -163,51 +234,9 @@ export function TasksTab() {
     }
     
     setTimeout(async () => {
-      const completionObj = { taskId: finalTaskId, completedAt: Date.now() };
-      try {
-        const res = await fetch('/api/tasks/complete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': initData || ''
-          },
-          body: JSON.stringify({ taskId: finalTaskId, provider: task.provider })
-        });
-        
-        const data = await res.json();
-        if (data.success) {
-          const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
-          setCompletedTasksList(updatedList);
-          
-          if (user) {
-            setUser({
-              ...user,
-              miningRate: data.newRate || user.miningRate,
-              completedTasks: JSON.stringify(updatedList)
-            });
-          }
-          await fetchUser();
-        } else {
-          alert(data.error || 'Failed to complete task');
-        }
-      } catch (e) {
-        console.warn('Backend not available, using local simulation for task completion');
-        const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
-        setCompletedTasksList(updatedList);
-        
-        if (user) {
-          const rewardRateBoost = task.id === 'sys_add_home' ? 500 : task.id === 'adsgram_reward' ? 200 : task.id === 'adsgram_task' ? 300 : 100;
-          setUser({ 
-            ...user, 
-            balance: (user.balance || 0) + 100, // +0.01 USDT
-            miningRate: (user.miningRate || 0) + rewardRateBoost,
-            completedTasks: JSON.stringify(updatedList)
-          });
-        }
-      } finally {
-        setLoadingTask(null);
-      }
-    }, 1000); // Trigger completion
+      await triggerBackendTaskCompletion(finalTaskId, task.provider, rewardRateBoost);
+      setLoadingTask(null);
+    }, 1000);
   };
 
   const adsgramTasks: Task[] = [
@@ -259,6 +288,31 @@ export function TasksTab() {
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
     
+    if (task.id === 'adsgram_task' && !isCompleted) {
+      return (
+        <motion.div 
+          key={task.id} 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.05 }}
+          className="p-3 rounded-2xl border mb-2 bg-white border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgb(0,0,0,0.04)]"
+        >
+          {React.createElement('adsgram-task', {
+            id: 'adsgram-task-component',
+            'data-block-id': 'task-46660',
+            style: {
+              display: 'block',
+              width: '100%',
+              fontFamily: 'inherit',
+              '--adsgram-task-font-size': '13px',
+              '--adsgram-task-icon-size': '40px',
+              '--adsgram-task-icon-border-radius': '12px'
+            }
+          })}
+        </motion.div>
+      );
+    }
+
     return (
       <motion.div 
         key={task.id} 
