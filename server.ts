@@ -328,6 +328,22 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
   res.json({ success: true, balance: updatedUser.balance, lastClaimAt: updatedUser.lastClaimAt });
 });
 
+app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  try {
+    const history = await db.select()
+      .from(miningClaims)
+      .where(eq(miningClaims.userId, userId))
+      .orderBy(desc(miningClaims.claimedAt))
+      .limit(30)
+      .all();
+    res.json({ history });
+  } catch (err) {
+    console.error('[MINING HISTORY ERROR]', err);
+    res.status(500).json({ error: 'Failed to fetch mining history' });
+  }
+});
+
 app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const { taskId, provider } = req.body;

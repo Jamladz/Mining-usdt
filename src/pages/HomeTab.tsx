@@ -3,7 +3,7 @@ import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { formatUSDT, CLAIM_COOLDOWN_MS } from '../lib/utils';
 import { USDT } from "../components/USDT";
-import { Pickaxe, Timer, Sparkles, Zap, Users } from 'lucide-react';
+import { Pickaxe, Timer, Sparkles, Zap, Users, History, ArrowUpRight, Loader2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export function HomeTab() {
@@ -11,6 +11,36 @@ export function HomeTab() {
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isClaiming, setIsClaiming] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [history, setHistory] = useState<{ id: number; amount: number; claimedAt: number }[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  const fetchHistory = async () => {
+    if (!initData) {
+      setLoadingHistory(false);
+      return;
+    }
+    try {
+      const res = await fetch('/api/mine/history', {
+        headers: {
+          'Authorization': initData || ''
+        }
+      });
+      const data = await res.json();
+      if (data.history) {
+        setHistory(data.history);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch mining history, using simulation fallback.', e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchHistory();
+    }
+  }, [user, initData]);
 
   useEffect(() => {
     if (!user) return;
@@ -52,18 +82,29 @@ export function HomeTab() {
           });
         }
         setShowSuccess(true);
+        fetchHistory();
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
         alert(data.error || 'Failed to claim');
       }
     } catch (e) {
       console.warn('Backend not available, using local simulation for claim');
+      const now = Date.now();
       if (user) {
         setUser({ 
           ...user, 
           balance: (user.balance || 0) + (user.miningRate || 0),
-          lastClaimAt: Date.now()
+          lastClaimAt: now
         });
+        // Prepend simulated claim
+        setHistory(prev => [
+          {
+            id: Math.random(),
+            amount: user.miningRate || 1000,
+            claimedAt: now
+          },
+          ...prev
+        ]);
       }
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
@@ -226,6 +267,80 @@ export function HomeTab() {
             </div>
           </motion.div>
         </div>
+
+        {/* Premium Mining History */}
+        <motion.div 
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="border-t border-slate-100 pt-6 mt-2 flex flex-col space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-700">
+                <History className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 tracking-tight">Mining History</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Your recent claim records</p>
+              </div>
+            </div>
+            {history.length > 0 && (
+              <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-full font-mono">
+                {history.length} claims
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
+            {loadingHistory ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
+                <p className="text-[10px] font-bold text-slate-400">Loading your history...</p>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center space-y-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200/60 p-4">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-700">No History Available</h4>
+                  <p className="text-[10px] text-slate-400 max-w-[200px] mt-1 mx-auto leading-normal">
+                    You haven't claimed any mining rewards yet. Press the CLAIM button above to start!
+                  </p>
+                </div>
+              </div>
+            ) : (
+              history.map((claim) => (
+                <div 
+                  key={claim.id} 
+                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50/70 hover:bg-slate-50 transition-colors border border-slate-100/60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                      <ArrowUpRight className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-slate-800">Successfully Claimed</p>
+                      <p className="text-[9px] font-medium text-slate-400">
+                        {new Date(claim.claimedAt).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100/50 px-2.5 py-1 rounded-lg">
+                    <span className="text-[11px] font-black text-emerald-600">+</span>
+                    <USDT amount={formatUSDT(claim.amount)} size="text-xs text-emerald-600 font-black" iconSize="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </motion.div>
       </div>
     </div>
   );
