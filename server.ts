@@ -6,6 +6,7 @@ import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
 import { eq, and, gt, desc, sql } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
+import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
 
 const app = express();
 app.use(express.json());
@@ -13,23 +14,10 @@ app.use(cors());
 
 const PORT = 3000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
-const USDT_SCALE = 10000; // 1 USDT = 10000 units
-const BASE_MINING_RATE = 1000; // 0.10 USDT per day
-const MAX_MINING_RATE = 100000; // 0.15 USDT per day
+const BASE_MINING_RATE = 1000; // 0.10 USDT per day base
+const MAX_MINING_RATE = 100000; // 10.00 USDT per day max
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MIN_WITHDRAWAL = 30000; // 3 USDT
-
-// Referral System Constants
-const WELCOME_REFERRAL_REWARD = 7000; // 0.7 USDT gift for the new user
-const REFERRER_REWARD = 1000;       // 0.1 USDT reward for the referrer
-const REFERRER_RATE_BOOST = 200;    // +0.02 Mining Rate boost for the referrer
-
-const MILESTONES = [
-  { id: 'm1', target: 3, rewardUsdt: 500, rewardRate: 500 }, 
-  { id: 'm2', target: 5, rewardUsdt: 1000, rewardRate: 1000 },
-  { id: 'm3', target: 10, rewardUsdt: 2500, rewardRate: 2000 },
-  { id: 'm4', target: 25, rewardUsdt: 7000, rewardRate: 5000 },
-];
 
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
@@ -87,8 +75,6 @@ const requireUser = async (req: express.Request, res: express.Response, next: ex
     }
     
     (req as any).startParamFallback = startParamFallback;
-    console.log(`[AUTH LOGGER] User ID: ${tgUser.id}, Username: ${tgUser.username || 'unknown'}, Header start_param: "${startParamFallback}"`);
-    
     next();
   } catch (err) {
     console.error('[AUTH ERROR]', err);
@@ -122,6 +108,8 @@ async function getFormattedUser(userId: string) {
 }
 
 // API ROUTES
+
+// AUTHENTICATION & ATOMIC REFERRAL PROCESSING
 app.post('/api/auth', requireUser, async (req: any, res: any) => {
   const tgUser = req.user;
   const userId = tgUser.id.toString();
@@ -129,7 +117,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   let user = await db.select().from(users).where(eq(users.id, userId)).get();
   let isNewUserFlag = false;
 
-  // 1. & 2. & 3. Extract and sanitize referrer ID
+  // Extract and sanitize referrer ID
   const rawRef = req.body.start_param || req.startParamFallback || '';
   let referrerId: string | null = null;
   if (rawRef) {
@@ -140,10 +128,9 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       .trim();
   }
 
+  // 1. Register user if new
   if (!user) {
     isNewUserFlag = true;
-    
-    // Create new user record first (Minimal)
     try {
       user = await db.insert(users).values({
         id: userId,
@@ -154,12 +141,11 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
         balance: 0,
         totalEarned: 0,
         miningRate: BASE_MINING_RATE,
-        claimedMilestones: '[]',
         referralsCount: 0,
-        earnedReferralCoins: 0,
+        referralEarnings: 0,
         createdAt: Date.now()
       }).returning().get();
-      console.log(`[AUTH] New user registered: ${userId}`);
+      console.log(`[AUTH] New user created: ${userId}`);
     } catch (err) {
       console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
       user = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -167,62 +153,72 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     }
   }
 
-  // 4. - 9. Referral Logic (Idempotent & Atomic)
+  // 2. Atomic Referral Processing
+  // Rules:
+  // - referrerId must exist and not be empty
+  // - No Self Referral (referrerId !== userId)
+  // - First valid referrer wins (user.referredBy must be empty/null)
   if (referrerId && referrerId !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
-    // 4. Validate referrer exists
     if (/^[0-9]{5,15}$/.test(referrerId)) {
       try {
         await db.transaction(async (tx) => {
-          const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
-          
-          if (referrer) {
-            // Check for existing global referral for this user (Unique constraint fallback)
-            const globalRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
-            
-            if (!globalRef) {
-              console.log(`[REFERRAL] Processing: ${referrerId} -> ${userId}`);
-              
-              // 9. Execute referral transaction
-              // Record relationship
-              await tx.insert(referrals).values({
-                referrerId,
-                referredUserId: userId,
-                rewardStatus: 'paid',
-                createdAt: Date.now()
-              });
-
-              // Update Referrer: +1 count, +cash reward, +rate boost
-              await tx.update(users).set({
-                miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
-                balance: referrer.balance + REFERRER_REWARD,
-                totalEarned: referrer.totalEarned + REFERRER_REWARD,
-                referralsCount: referrer.referralsCount + 1,
-                earnedReferralCoins: referrer.earnedReferralCoins + REFERRER_REWARD
-              }).where(eq(users.id, referrerId));
-
-              // Update Referred User: +welcome reward, set referredBy
-              let claimedArr: string[] = [];
-              try { claimedArr = JSON.parse(user!.claimedMilestones || '[]'); } catch (e) {}
-              if (!claimedArr.includes('welcome_claimed')) claimedArr.push('welcome_claimed');
-
-              await tx.update(users).set({
-                referredBy: referrerId,
-                balance: user!.balance + WELCOME_REFERRAL_REWARD,
-                totalEarned: user!.totalEarned + WELCOME_REFERRAL_REWARD,
-                claimedMilestones: JSON.stringify(claimedArr)
-              }).where(eq(users.id, userId));
-
-              console.log(`[REFERRAL SUCCESS] ${referrerId} referred ${userId}. Rewards distributed.`);
-            }
+          // Re-verify current state inside transaction
+          const currentUserState = await tx.select().from(users).where(eq(users.id, userId)).get();
+          if (!currentUserState || (currentUserState.referredBy && currentUserState.referredBy.trim() !== '')) {
+            console.log(`[REFERRAL ALREADY PROCESSED] User ${userId} already has referrer.`);
+            return;
           }
+
+          const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
+          if (!referrer) {
+            console.log(`[REFERRAL INVALID] Referrer ${referrerId} does not exist.`);
+            return;
+          }
+
+          // Check if referral record already exists
+          const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
+          if (existingRef) {
+            console.log(`[REFERRAL ALREADY RECORDED] Referral record already exists for ${userId}.`);
+            return;
+          }
+
+          // Execute Referral Atomic Transaction
+          // A) Record successful referral
+          await tx.insert(referrals).values({
+            referrerId,
+            referredUserId: userId,
+            rewardUSDT: REFERRAL_USDT_REWARD_UNITS, // 1000 = 0.10 USDT
+            miningBonus: REFERRAL_MINING_BONUS_UNITS, // 100 = 0.01 Mining Rate
+            status: 'completed',
+            createdAt: Date.now()
+          });
+
+          // B) Update Referred User (B): set referredBy = referrerId
+          await tx.update(users).set({
+            referredBy: referrerId,
+            updatedAt: Date.now()
+          }).where(eq(users.id, userId));
+
+          // C) Update Referrer (A): +0.1 USDT balance, +0.01 miningRate, +1 referralsCount, +0.1 USDT referralEarnings
+          await tx.update(users).set({
+            balance: referrer.balance + REFERRAL_USDT_REWARD_UNITS,
+            totalEarned: referrer.totalEarned + REFERRAL_USDT_REWARD_UNITS,
+            miningRate: Math.min(referrer.miningRate + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
+            referralsCount: referrer.referralsCount + 1,
+            referralEarnings: referrer.referralEarnings + REFERRAL_USDT_REWARD_UNITS,
+            updatedAt: Date.now()
+          }).where(eq(users.id, referrerId));
+
+          console.log(`[REFERRAL SUCCESS] ${referrerId} referred ${userId}. Referrer rewarded: +0.1 USDT, +0.01 Mining Rate.`);
         });
-        // Refresh user object after transaction
+
+        // Refresh user after transaction
         user = await db.select().from(users).where(eq(users.id, userId)).get();
       } catch (err: any) {
         if (err.message && err.message.includes('UNIQUE constraint failed')) {
-          console.log(`[REFERRAL] Idempotency check: ${userId} already referred.`);
+          console.log(`[REFERRAL IDEMPOTENCY] Unique constraint triggered for user ${userId}.`);
         } else {
-          console.error('[REFERRAL ERROR]', err);
+          console.error('[REFERRAL TRANSACTION ERROR]', err);
         }
       }
     }
@@ -233,9 +229,33 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   res.json({ 
     user: formattedUser, 
     referralsCount: user!.referralsCount, 
-    referralBonusEarned: user!.earnedReferralCoins,
+    referralEarnings: user!.referralEarnings,
     isNewUser: isNewUserFlag
   });
+});
+
+app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.claimedWelcome && user.claimedWelcome > 0) {
+    return res.status(400).json({ error: 'Welcome bonus already claimed' });
+  }
+
+  const WELCOME_BONUS_UNITS = 5000; // 0.50 USDT (10000 = 1.00 USDT)
+
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({
+      balance: user.balance + WELCOME_BONUS_UNITS,
+      totalEarned: user.totalEarned + WELCOME_BONUS_UNITS,
+      claimedWelcome: 1,
+      updatedAt: Date.now()
+    }).where(eq(users.id, userId));
+  });
+
+  const updatedUser = await getFormattedUser(userId);
+  res.json({ success: true, user: updatedUser });
 });
 
 app.post('/api/mine', requireUser, async (req: any, res: any) => {
@@ -314,10 +334,9 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  // Moderate boost: +10% of base rate
   let boostAmount = 100; // +0.01 USDT
   if (taskId === 'sys_add_home') {
-    boostAmount = 3000; // +0.30 USDT (Permanent)
+    boostAmount = 3000; // +0.30 USDT
   } else if (taskId === 'adsgram_reward') {
     boostAmount = 200; // +0.02 USDT
   } else if (taskId === 'adsgram_task') {
@@ -357,7 +376,7 @@ app.get('/api/tasks', requireUser, async (req: any, res: any) => {
 
 app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
-  const { amount, walletAddress } = req.body; // amount is in USDT_SCALE
+  const { amount, walletAddress } = req.body;
   
   if (!amount || !walletAddress) return res.status(400).json({ error: 'Missing withdrawal details' });
   if (amount < MIN_WITHDRAWAL) return res.status(400).json({ error: 'Minimum withdrawal is 3 USDT' });
@@ -365,7 +384,6 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  // Enforce 3 referrals limit using the source of truth column
   if (user.referralsCount < 3) {
     return res.status(400).json({ error: 'You must refer at least 3 active friends to withdraw funds.' });
   }
@@ -396,124 +414,25 @@ app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   res.json({ history });
 });
 
-
 app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
-  const friends = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).all();
+  const friends = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).orderBy(desc(referrals.createdAt)).all();
   
-  // Get usernames for friends
   const friendDetails = await Promise.all(friends.map(async (f) => {
     const friendUser = await db.select().from(users).where(eq(users.id, f.referredUserId)).get();
     return {
-      id: f.referredUserId,
-      username: friendUser?.username || 'Unknown',
+      id: f.id,
+      referrerId: f.referrerId,
+      referredUserId: f.referredUserId,
+      referredName: friendUser?.firstName || friendUser?.username || 'User',
+      rewardUSDT: f.rewardUSDT,
+      miningBonus: f.miningBonus,
+      status: f.status || 'completed',
       createdAt: f.createdAt
     };
   }));
 
-  res.json({ friends: friendDetails });
-});
-
-app.get('/api/referrals/leaderboard', requireUser, async (req: any, res: any) => {
-  const userId = req.user.id.toString();
-  try {
-    const topReferrers = await db.select()
-      .from(users)
-      .where(gt(users.referralsCount, 0))
-      .orderBy(desc(users.referralsCount))
-      .limit(20)
-      .all();
-
-    const leaderboard = topReferrers.map((u) => ({
-      id: u.id,
-      username: u.username || 'Anonymous',
-      firstName: u.firstName || 'User',
-      photoUrl: u.photoUrl || '',
-      referralsCount: u.referralsCount,
-      isCurrentUser: u.id === userId
-    }));
-
-    res.json({ leaderboard });
-  } catch (err) {
-    console.error('[LEADERBOARD ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch leaderboard' });
-  }
-});
-
-// Milestones handled at the top of the file
-
-app.post('/api/referrals/milestone', requireUser, async (req: any, res: any) => {
-  const userId = req.user.id.toString();
-  const { milestoneId } = req.body;
-  
-  const milestone = MILESTONES.find(m => m.id === milestoneId);
-  if (!milestone) return res.status(400).json({ error: 'Invalid milestone' });
-
-  const user = await db.select().from(users).where(eq(users.id, userId)).get();
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  let claimedMilestones: string[] = [];
-  try {
-    claimedMilestones = JSON.parse(user.claimedMilestones || '[]');
-  } catch (e) {}
-
-  if (claimedMilestones.includes(milestoneId)) {
-    return res.status(400).json({ error: 'Milestone already claimed' });
-  }
-
-  if (user.referralsCount < milestone.target) {
-    return res.status(400).json({ error: 'Not enough referrals' });
-  }
-
-  claimedMilestones.push(milestoneId);
-  
-  const newRate = Math.min(user.miningRate + milestone.rewardRate, MAX_MINING_RATE);
-  
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({
-      balance: user.balance + milestone.rewardUsdt,
-      totalEarned: user.totalEarned + milestone.rewardUsdt,
-      miningRate: newRate,
-      claimedMilestones: JSON.stringify(claimedMilestones)
-    }).where(eq(users.id, userId));
-  });
-
-  const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
-  res.json({ success: true, user: updatedUser });
-});
-
-
-app.post('/api/referrals/claim-welcome', requireUser, async (req: any, res: any) => {
-  const userId = req.user.id.toString();
-  const user = await db.select().from(users).where(eq(users.id, userId)).get();
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  if (!user.referredBy) {
-    return res.status(400).json({ error: 'No referral associated with this account' });
-  }
-
-  let claimedMilestones: string[] = [];
-  try {
-    claimedMilestones = JSON.parse(user.claimedMilestones || '[]');
-  } catch (e) {}
-
-  if (claimedMilestones.includes('welcome_claimed')) {
-    return res.status(400).json({ error: 'Welcome bonus already claimed' });
-  }
-
-  claimedMilestones.push('welcome_claimed');
-  const WELCOME_BONUS = 7000; // 0.7 USDT
-
-  await db.transaction(async (tx) => {
-    await tx.update(users).set({
-      balance: user.balance + WELCOME_BONUS,
-      totalEarned: user.totalEarned + WELCOME_BONUS,
-      claimedMilestones: JSON.stringify(claimedMilestones)
-    }).where(eq(users.id, userId));
-  });
-
-  const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
-  res.json({ success: true, user: updatedUser });
+  res.json({ referrals: friendDetails });
 });
 
 // Vite middleware for development

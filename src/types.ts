@@ -1,32 +1,20 @@
-export interface ReferralRecord {
-  id: string;
-  referrerId: string;
-  referredId: string;
-  referredName?: string;
-  rewardCoins: number;
-  createdAt: number;
-}
-
-export interface ReferralMilestone {
-  id: string;
-  targetCount: number;
-  rewardCoins: number;
-  rewardVipDays?: number;
-}
+export * from './types/referral';
 
 export interface User {
   id: string;
   username: string;
   firstName: string;
   photoUrl: string;
-  balance: number;
+  balance: number; // scaled by 10000 (0.10 USDT = 1000)
   totalEarned: number;
-  miningRate: number;
+  totalWithdrawn?: number;
+  miningRate: number; // base 1000 = 0.10 USDT/day
   referralCode: string;
-  referredBy?: string;
+  referredBy?: string | null;
   referralsCount: number;
-  earnedReferralCoins: number;
-  claimedMilestones: string[];
+  referralEarnings: number; // scaled by 10000 (0.10 USDT per referral = 1000)
   lastClaimAt?: number;
+  claimedWelcome?: number;
   createdAt: number;
+  completedTasks?: string;
 }

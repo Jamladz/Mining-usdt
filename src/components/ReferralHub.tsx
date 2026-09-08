@@ -1,58 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Header } from './Header';
 import { useApp } from '../context/AppContext';
-import { USDT } from "./USDT";
-import { 
-  Users, 
-  Copy, 
-  Share2, 
-  Pickaxe, 
-  CheckCircle2, 
-  Gift, 
-  Trophy, 
-  Loader2,
-  Sparkles,
-  Rocket
-} from 'lucide-react';
-import { formatUSDT } from '../lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
-import { cn } from '../lib/utils';
 import { referralService } from '../services/referralService';
-import { REFERRAL_MILESTONES, WELCOME_REFERRAL_REWARD, REFERRER_REWARD } from '../config/referral';
-import { ReferralRecord } from '../types';
+import { REFERRAL_USDT_REWARD, REFERRAL_MINING_BONUS } from '../config/referral';
+import { ReferralRecord } from '../types/referral';
+import { formatUSDT } from '../lib/utils';
+import { motion } from 'motion/react';
+import { Users, Copy, Share2, Check, Sparkles, Zap, ArrowUpRight, ShieldCheck, Clock } from 'lucide-react';
+import { USDT } from './USDT';
 
 export function ReferralHub() {
-  const { user, setUser, isAuthCompleted, showToast } = useApp();
+  const { user, showToast } = useApp();
+  const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [friends, setFriends] = useState<ReferralRecord[]>([]);
-  const [claimingMilestone, setClaimingMilestone] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'invite' | 'friends' | 'leaderboard'>('invite');
-  
+
   const referralLink = user ? referralService.getReferralLink(user.id) : '';
 
   useEffect(() => {
-    const loadData = async () => {
-      if (isAuthCompleted) {
-        const refs = await referralService.getUserReferrals();
-        setFriends(refs);
+    let isMounted = true;
+    const loadReferrals = async () => {
+      setLoading(true);
+      const data = await referralService.getUserReferrals();
+      if (isMounted) {
+        setReferrals(data);
+        setLoading(false);
       }
     };
-    loadData();
-  }, [isAuthCompleted]);
-
-  const claimedMilestones = (() => {
-    try {
-      return JSON.parse(user?.claimedMilestones || '[]');
-    } catch {
-      return [];
-    }
-  })();
+    loadReferrals();
+    return () => { isMounted = false; };
+  }, [user?.id, user?.referralsCount]);
 
   const handleCopy = () => {
+    if (!referralLink) return;
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
-    showToast('📋 Referral link copied!', 'success');
-    setTimeout(() => setCopied(false), 2000);
+    showToast('Referral link copied to clipboard!', 'success');
+    setTimeout(() => setCopied(false), 2500);
   };
 
   const handleShare = async () => {
@@ -65,152 +48,161 @@ export function ReferralHub() {
     }
   };
 
-  const handleClaimMilestone = async (m: any) => {
-    if (claimingMilestone || claimedMilestones.includes(m.id)) return;
-    
-    if ((user?.referralsCount || 0) < m.targetCount) return;
-    
-    setClaimingMilestone(m.id);
-    try {
-      const data = await referralService.claimReferralMilestone(m.id);
-      if (data.success && data.user) {
-        setUser(data.user);
-        showToast(`🎉 Reward Claimed: +${m.rewardCoins} coins & +${m.rewardVipDays} VIP days!`, 'success');
-      } else {
-        showToast(data.error || 'Failed to claim milestone', 'error');
-      }
-    } catch (e) {
-      showToast('Connection error', 'error');
-    } finally {
-      setClaimingMilestone(null);
-    }
-  };
+  // Stats calculations
+  const totalInvited = user?.referralsCount || 0;
+  // Calculate referral earnings in USDT (from user.referralEarnings scaled by 10000)
+  const earningsUSDT = (user?.referralEarnings || 0) / 10000;
+  // Mining boost (+0.01 per referral)
+  const miningBoostTotal = totalInvited * REFERRAL_MINING_BONUS;
 
   return (
-    <div className="h-full overflow-y-auto bg-[#F5F7F9]">
-      <Header title="Referral Hub" />
-      
-      <div className="p-4 space-y-4 pb-24">
-        {/* Stats Card */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white rounded-[20px] p-4 shadow-sm border border-slate-100">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Invited Friends</p>
-            <p className="text-2xl font-black text-slate-900">{user?.referralsCount || 0}</p>
+    <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 pb-24">
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white p-6 shadow-xl border border-slate-800">
+        <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        <div className="relative z-10 space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Instant Rewards Program</span>
           </div>
-          <div className="bg-emerald-50 rounded-[20px] p-4 shadow-sm border border-emerald-100">
-            <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Total Earned</p>
-            <USDT amount={formatUSDT(user?.earnedReferralCoins || 0)} size="text-2xl text-emerald-700" iconSize="w-5 h-5" className="font-black" />
+          <h1 className="text-2xl font-black tracking-tight text-white">Invite Friends & Earn</h1>
+          <p className="text-xs text-slate-300 leading-relaxed max-w-xs">
+            Get <strong className="text-emerald-400 font-extrabold">+${REFERRAL_USDT_REWARD.toFixed(2)} USDT</strong> cash reward and <strong className="text-emerald-400 font-extrabold">+{REFERRAL_MINING_BONUS.toFixed(2)} Mining Speed</strong> boost for every verified friend!
+          </p>
+        </div>
+      </div>
+
+      {/* Real-time Stats Dashboard */}
+      <div className="grid grid-cols-3 gap-2.5">
+        {/* Friends Invited */}
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm flex flex-col justify-between space-y-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider">Invited</span>
+            <Users className="w-3.5 h-3.5 text-blue-500" />
+          </div>
+          <div>
+            <p className="text-xl font-black text-slate-900">{totalInvited}</p>
+            <p className="text-[10px] font-bold text-slate-400">Friends</p>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-slate-200/60 p-1 rounded-2xl flex gap-1">
-          {(['invite', 'friends', 'leaderboard'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all",
-                activeTab === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-              )}
-            >
-              {tab}
-            </button>
-          ))}
+        {/* Referral Earnings */}
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm flex flex-col justify-between space-y-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider">Earnings</span>
+            <USDT amount="0" size="text-xs" iconSize="w-3.5 h-3.5" />
+          </div>
+          <div>
+            <p className="text-xl font-black text-emerald-600">${earningsUSDT.toFixed(2)}</p>
+            <p className="text-[10px] font-bold text-slate-400">USDT Earned</p>
+          </div>
         </div>
 
-        <AnimatePresence mode="wait">
-          {activeTab === 'invite' && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-              <div className="bg-slate-900 rounded-[24px] p-5 text-white shadow-lg border border-slate-800">
-                <h2 className="text-lg font-black mb-1">Invite & Earn</h2>
-                <p className="text-[11px] text-slate-300 mb-4">
-                  Earn <span className="text-emerald-400">+{formatUSDT(REFERRER_REWARD)} USDT</span> for every friend! 
-                  They get <span className="text-emerald-400">+{formatUSDT(WELCOME_REFERRAL_REWARD)} USDT</span> welcome bonus.
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={handleCopy} className="flex-1 bg-white/10 py-3 rounded-xl font-black text-[10px]">{copied ? 'COPIED!' : 'COPY'}</button>
-                  <button onClick={handleShare} className="flex-1 bg-emerald-500 py-3 rounded-xl font-black text-[10px]">SHARE</button>
+        {/* Mining Boost */}
+        <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-sm flex flex-col justify-between space-y-1">
+          <div className="flex items-center justify-between text-slate-400">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider">Boost</span>
+            <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+          </div>
+          <div>
+            <p className="text-xl font-black text-amber-600">+{miningBoostTotal.toFixed(2)}</p>
+            <p className="text-[10px] font-bold text-slate-400">Rate Boost</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Referral Link & Actions */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-black text-slate-900 tracking-tight">Your Referral Link</h2>
+          <span className="text-[11px] font-extrabold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3" /> Guaranteed Reward
+          </span>
+        </div>
+
+        <div className="flex items-center bg-slate-50 border border-slate-200 rounded-2xl p-2.5 text-xs font-mono text-slate-700 truncate">
+          <span className="truncate select-all">{referralLink}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleCopy}
+            className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-2xl text-xs flex items-center justify-center gap-2 transition-colors border border-slate-200"
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-600" />}
+            <span>{copied ? 'Copied!' : 'Copy Link'}</span>
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={handleShare}
+            className="py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl text-xs flex items-center justify-center gap-2 transition-colors shadow-md shadow-slate-900/10"
+          >
+            <Share2 className="w-4 h-4 text-emerald-400" />
+            <span>Share on Telegram</span>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Referral History */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-black text-slate-900 tracking-tight">Invited Friends History</h2>
+            <p className="text-[11px] font-semibold text-slate-400">Successful referrals connected to your account</p>
+          </div>
+          <span className="text-xs font-black text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
+            {referrals.length}
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="py-8 text-center text-xs text-slate-400 font-bold flex items-center justify-center gap-2">
+            <Clock className="w-4 h-4 animate-spin text-emerald-500" /> Loading referrals...
+          </div>
+        ) : referrals.length === 0 ? (
+          <div className="py-10 text-center space-y-2 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 p-6">
+            <Users className="w-8 h-8 text-slate-300 mx-auto" />
+            <p className="text-xs font-black text-slate-700">No Friends Invited Yet</p>
+            <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+              Share your referral link with friends on Telegram to start earning instant +0.10 USDT and mining boosts!
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {referrals.map((item) => (
+              <div 
+                key={item.id} 
+                className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-sm">
+                    {item.referredName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-extrabold text-slate-900">{item.referredName}</p>
+                    <p className="text-[10px] font-semibold text-slate-400">
+                      {new Date(item.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right space-y-0.5">
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <span className="font-black text-emerald-600">+${(item.rewardUSDT / 10000).toFixed(2)} USDT</span>
+                    <span className="text-[10px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
+                      +{(item.miningBonus / 10000).toFixed(2)} Speed
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 justify-end text-[10px] font-extrabold text-emerald-600">
+                    <Check className="w-3 h-3" /> Completed
+                  </div>
                 </div>
               </div>
-
-              <div className="space-y-3">
-                <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-500">Milestones</h3>
-                {REFERRAL_MILESTONES.map((m) => {
-                  const isClaimed = claimedMilestones.includes(m.id);
-                  const isUnlocked = (user?.referralsCount || 0) >= m.targetCount;
-                  return (
-                    <div key={m.id} className="bg-white p-4 rounded-[20px] border border-slate-100 flex justify-between items-center">
-                      <div>
-                        <p className="text-xs font-black">Invite {m.targetCount} Friends</p>
-                        <p className="text-[10px] text-emerald-600 font-bold">+{m.rewardCoins} coins & +{m.rewardVipDays} VIP days</p>
-                      </div>
-                      {isClaimed ? (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      ) : (
-                        <button 
-                          onClick={() => handleClaimMilestone(m)}
-                          disabled={!isUnlocked || claimingMilestone === m.id}
-                          className={cn(
-                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase",
-                            isUnlocked ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-400"
-                          )}
-                        >
-                          {claimingMilestone === m.id ? '...' : 'Claim'}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
-
-          {activeTab === 'friends' && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-white rounded-[24px] p-5 border border-slate-100 min-h-[200px]">
-              {friends.length > 0 ? (
-                <div className="space-y-3">
-                  {friends.map((f) => (
-                    <div key={f.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <p className="text-xs font-black">@{f.referredName || 'user'}</p>
-                      <p className="text-[10px] text-emerald-600 font-bold">+{REFERRER_REWARD} coins</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 opacity-50">
-                  <Users className="w-8 h-8 mb-2" />
-                  <p className="text-xs font-black">No friends yet</p>
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {activeTab === 'leaderboard' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }} 
-              animate={{ opacity: 1, y: 0 }} 
-              exit={{ opacity: 0, y: -10 }} 
-              className="bg-white rounded-[32px] p-10 border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 min-h-[300px]"
-            >
-              <div className="w-20 h-20 bg-amber-50 rounded-[24px] flex items-center justify-center relative">
-                <div className="absolute inset-0 bg-amber-200 rounded-[24px] animate-pulse opacity-20"></div>
-                <Rocket className="w-10 h-10 text-amber-600 relative z-10 animate-bounce" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-xl font-black text-slate-900 tracking-tight">Coming Soon</h3>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest max-w-[200px] leading-relaxed">
-                  The ultimate referral leaderboard is currently in development
-                </p>
-              </div>
-              <div className="pt-2">
-                <span className="bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
-                  Stay Tuned
-                </span>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,67 +1,44 @@
-import { ReferralRecord } from '../types';
+import { ReferralRecord } from '../types/referral';
+import { REFERRAL_USDT_REWARD, REFERRAL_MINING_BONUS } from '../config/referral';
 
 export const referralService = {
   getTelegramUser() {
     return window.Telegram?.WebApp?.initDataUnsafe?.user || null;
   },
 
-  getCurrentUserId() {
+  getCurrentUserId(): string | null {
     const user = this.getTelegramUser();
     return user?.id?.toString() || null;
   },
 
-  getReferralLink(userId: string) {
+  getReferralLink(userId: string): string {
     const botUsername = 'Miningusdt2027_bot';
     return `https://t.me/${botUsername}?startapp=ref_${userId}`;
   },
 
-  async getShareTelegramLink(userId: string) {
+  async getShareTelegramLink(userId: string): Promise<string> {
     const url = this.getReferralLink(userId);
-    const fullMessage = `💰 Start mining USDT for free with instant withdrawals!\n🎁 Get a 0.7 USDT instant welcome bonus when you register using my link!\n🚀 Click the link and start earning now:\n\n${url}`;
-    return `https://t.me/share/url?text=${encodeURIComponent(fullMessage)}`;
-  },
-
-  async processReferral(startParam?: string) {
-    // This logic is mostly handled server-side during auth, 
-    // but we call the auth endpoint which triggers processReferral on the backend.
-    // The startParam is sent in the body of /api/auth
+    const message = `💰 Start mining USDT for free with instant withdrawals!\n🎁 Earn +${REFERRAL_USDT_REWARD.toFixed(2)} USDT & +${REFERRAL_MINING_BONUS.toFixed(2)} Mining Rate per invited friend!\n🚀 Join using my link now:\n\n${url}`;
+    return `https://t.me/share/url?text=${encodeURIComponent(message)}`;
   },
 
   async getUserReferrals(): Promise<ReferralRecord[]> {
-    const response = await fetch('/api/referrals', {
-      headers: {
-        'Authorization': `Bearer ${this.getAuthToken()}`
-      }
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data.referrals || [];
+    try {
+      const response = await fetch('/api/referrals', {
+        headers: {
+          'Authorization': this.getAuthToken()
+        }
+      });
+      if (!response.ok) return [];
+      const data = await response.json();
+      return data.referrals || [];
+    } catch (e) {
+      console.error('Failed fetching user referrals:', e);
+      return [];
+    }
   },
 
-  async getReferralLeaderboard() {
-    const response = await fetch('/api/referrals/leaderboard', {
-      headers: {
-        'Authorization': `Bearer ${this.getAuthToken()}`
-      }
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return data.leaderboard || [];
-  },
-
-  async claimReferralMilestone(milestoneId: string) {
-    const response = await fetch('/api/referrals/claim-milestone', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getAuthToken()}`
-      },
-      body: JSON.stringify({ milestoneId })
-    });
-    return response.json();
-  },
-
-  getAuthToken() {
+  getAuthToken(): string {
     return window.Telegram?.WebApp?.initData || '';
   }
 };

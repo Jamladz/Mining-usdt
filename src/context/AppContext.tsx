@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { USDT } from '../components/USDT';
 import { syncUserToFirebase } from '../lib/firebase';
 import { User } from '../types';
 
@@ -75,7 +74,7 @@ interface AppContextType {
   initData: string | null;
   tgVersion: string;
   tgPlatform: string;
-  user: User | null; // Database user object
+  user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;
   fetchUser: () => Promise<void>;
   isFullscreen: boolean;
@@ -160,7 +159,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTgVersion(webApp.version || 'unknown');
       setTgPlatform(webApp.platform || 'unknown');
       
-      // Check safe areas
       if (webApp.safeAreaInset !== undefined) {
         setSafeAreaSupported(true);
       }
@@ -171,7 +169,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       let cleanupFullscreen: (() => void) | undefined;
       let cleanupHomeScreen: (() => void) | undefined;
 
-      // Check if requestFullscreen is supported (latest Telegram API, v8.0+)
       if (typeof webApp.requestFullscreen === 'function' && webApp.isVersionAtLeast && webApp.isVersionAtLeast('8.0')) {
         try {
           setCanFullscreen(true);
@@ -192,7 +189,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             webApp.offEvent('fullscreenFailed', handleFullscreenFailed);
           };
 
-          // Automatically request fullscreen on app start
           if (!webApp.isFullscreen) {
             webApp.requestFullscreen();
           }
@@ -202,7 +198,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // Check Home Screen Status support (Telegram v8.0+)
       if (typeof webApp.checkHomeScreenStatus === 'function' && webApp.isVersionAtLeast && webApp.isVersionAtLeast('8.0')) {
         try {
           const handleHomeScreenChecked = (event: { status: string }) => {
@@ -241,7 +236,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (cleanupHomeScreen) cleanupHomeScreen();
       };
     } else {
-      // Mock for standard browser view
       setInitData('mock_init_data');
       setTgData({
         user: { id: 12345, first_name: 'Dev', username: 'dev_user' }
@@ -296,7 +290,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async () => {
     if (!initData) return;
     try {
-      // Robustly extract start_param directly from window.Telegram to avoid React state batching race conditions
       let startParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param || '';
       
       if (!startParam) {
@@ -308,18 +301,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const cloudStorage = window.Telegram?.WebApp?.CloudStorage;
       if (startParam) {
-        // Save to Telegram CloudStorage as backup
         if (cloudStorage) {
           try {
             cloudStorage.setItem('pending_referrer', startParam, () => {});
           } catch (e) {}
         }
       } else {
-        // Fallback: load from Telegram CloudStorage
         const backedUp = await getStoredReferrer();
         if (backedUp) {
           startParam = backedUp;
-          console.log('[FALLBACK LOGGER] Restored start_param from Telegram CloudStorage:', startParam);
         }
       }
 
@@ -335,72 +325,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (data.user) {
-        const newUser = { 
+        const newUser: User = { 
           ...data.user, 
-          referralsCount: data.referralsCount || 0,
-          referralBonusEarned: data.referralBonusEarned || 0 
+          referralsCount: data.referralsCount ?? data.user.referralsCount ?? 0,
+          referralEarnings: data.referralEarnings ?? data.user.referralEarnings ?? 0
         };
 
         setIsAuthCompleted(true);
 
-        // Warning Toast if new registration without start_param (or if referral wasn't successfully linked)
-        if (data.isNewUser && (!data.user.referredBy || data.user.referredBy.trim() === '')) {
-          showToast(
-            <div className="text-left font-bold py-1">
-              <span className="text-[13px] text-amber-300 block mb-1 font-black">⚠️ Referral link not detected!</span>
-              <span className="text-[11px] font-bold text-slate-100 block leading-relaxed">Please open the bot from your friend's referral link to claim your 100 coins welcome bonus.</span>
-            </div>,
-            'info'
-          );
-        }
-
-        // Clear CloudStorage backup if referral is fully completed
         if (newUser.referredBy && cloudStorage) {
           try {
             cloudStorage.removeItem('pending_referrer', () => {});
           } catch (e) {}
         }
 
-        // Welcome reward notification
-        let claimedArr: string[] = [];
-        try {
-          claimedArr = JSON.parse(newUser.claimedMilestones || '[]');
-        } catch (e) {}
-
-        if (claimedArr.includes('welcome_claimed')) {
-          const alreadyNotified = localStorage.getItem('notified_welcome_bonus');
-          if (!alreadyNotified) {
-            showToast(
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-black text-amber-200">🎉 Welcome Gift Received!</span>
-                <span className="text-[11px] font-bold text-white opacity-90">You've successfully claimed your 0.7 USDT registration bonus.</span>
-              </div>,
-              'success'
-            );
-            localStorage.setItem('notified_welcome_bonus', 'true');
-          }
-        }
-
         // Referral count increase notification
         setUser((prevUser: User | null) => {
           if (prevUser && newUser.referralsCount > prevUser.referralsCount) {
-            // Timeout to let the screen load beautifully
             setTimeout(() => {
               showToast(
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[13px] font-black text-amber-200">🎉 New Friend Joined!</span>
-                  <span className="text-[11px] font-bold text-white opacity-90">+0.1 USDT reward and a permanent mining speed boost have been added.</span>
+                  <span className="text-[11px] font-bold text-white opacity-90">+0.10 USDT reward and a permanent +0.01 mining boost added.</span>
                 </div>, 
                 'success'
               );
-            }, 1000);
+            }, 800);
           }
           return newUser;
         });
       }
     } catch (e) {
       console.error('Failed to auth, falling back to local state:', e);
-      // Only set default mock if no state exists at all
       setUser((current: any) => {
         if (current) return current;
         return {
@@ -408,13 +364,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           firstName: tgData?.user?.first_name || 'Demo',
           username: tgData?.user?.username || 'demo_user',
           balance: 0,
-          miningRate: 1000, // BASE_MINING_RATE
+          miningRate: 1000,
           totalEarned: 0,
           totalWithdrawn: 0,
           referralsCount: 0,
-          referralBonusEarned: 0,
+          referralEarnings: 0,
           photoUrl: tgData?.user?.photo_url || '',
-          claimedMilestones: '[]',
           completedTasks: '[]'
         };
       });

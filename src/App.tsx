@@ -10,7 +10,7 @@ import { HomeTab } from './pages/HomeTab';
 import { TasksTab } from './pages/TasksTab';
 import { ReferralHub } from './components/ReferralHub';
 import { ProfileTab } from './pages/ProfileTab';
-import { WelcomeClaimSheet } from './components/WelcomeClaimSheet';
+import { WelcomeBonusSheet } from './components/WelcomeBonusSheet';
 import { AnimatePresence, motion } from 'motion/react';
 
 function AppContent() {
@@ -58,7 +58,7 @@ function AppContent() {
         </AnimatePresence>
       </main>
       <BottomNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
-      <WelcomeClaimSheet />
+      <WelcomeBonusSheet />
     </div>
   );
 }

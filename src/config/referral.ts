@@ -1,11 +1,10 @@
-import { ReferralMilestone } from '../types';
+// Referral System Configuration
+// Single source of truth for referral reward parameters
 
-export const WELCOME_REFERRAL_REWARD = 7000;
-export const REFERRER_REWARD = 1000;
+export const REFERRAL_USDT_REWARD = 0.1; // 0.10 USDT per successful referral
+export const REFERRAL_MINING_BONUS = 0.01; // +0.01 Mining Rate per successful referral
 
-export const REFERRAL_MILESTONES: ReferralMilestone[] = [
-  { id: 'm1', targetCount: 3, rewardCoins: 500, rewardVipDays: 1 },
-  { id: 'm2', targetCount: 5, rewardCoins: 1000, rewardVipDays: 3 },
-  { id: 'm3', targetCount: 10, rewardCoins: 2500, rewardVipDays: 7 },
-  { id: 'm4', targetCount: 25, rewardCoins: 7000, rewardVipDays: 30 },
-];
+// Integer scale constants for database storage (USDT_SCALE = 10000)
+export const USDT_SCALE = 10000;
+export const REFERRAL_USDT_REWARD_UNITS = 1000; // 0.10 * 10000 = 1000
+export const REFERRAL_MINING_BONUS_UNITS = 100; // 0.01 * 10000 = 100
