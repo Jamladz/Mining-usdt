@@ -342,7 +342,9 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        gt(taskCompletions.completedAt, now - ONE_DAY)
+        taskId === 'sys_add_home'
+          ? sql`1=1`
+          : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
     )
     .get();
@@ -357,7 +359,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   // Moderate boost: +10% of base rate
   let boostAmount = 100; // +0.01 USDT
   if (taskId === 'sys_add_home') {
-    boostAmount = 500; // +0.05 USDT
+    boostAmount = 3000; // +0.30 USDT (Permanent)
   } else if (taskId === 'adsgram_reward') {
     boostAmount = 200; // +0.02 USDT
   } else if (taskId === 'adsgram_task') {

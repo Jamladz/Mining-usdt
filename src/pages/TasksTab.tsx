@@ -151,11 +151,13 @@ export function TasksTab() {
   }, []);
 
   const getTaskStatus = (taskId: string) => {
-    if (taskId === 'sys_add_home' && homeScreenStatus === 'added') {
-      return { isCompleted: true, timeLeft: 24 * 60 * 60 * 1000 }; // Permanently completed or large cooldown
-    }
     const record = completedTasksList.find(t => t.taskId === taskId);
     if (!record) return { isCompleted: false, timeLeft: 0 };
+    
+    // For sys_add_home, it is completed once in history and never resets
+    if (taskId === 'sys_add_home') {
+      return { isCompleted: true, timeLeft: 999999999 };
+    }
     
     const ONE_DAY = 24 * 60 * 60 * 1000;
     const elapsed = currentTime - record.completedAt;
@@ -185,6 +187,26 @@ export function TasksTab() {
       };
     }
     
+    if (taskId === 'adsgram_reward') {
+      const completedSubtasks = [1, 2].filter(num => getTaskStatus(`adsgram_reward_${num}`).isCompleted);
+      const completedCount = completedSubtasks.length;
+      
+      if (completedCount === 2) {
+        const lastStatus = getTaskStatus('adsgram_reward_2');
+        return {
+          isCompleted: true,
+          timeLeft: lastStatus.timeLeft,
+          subLabel: '2/2 Watched today'
+        };
+      } else {
+        return {
+          isCompleted: false,
+          timeLeft: 0,
+          subLabel: `${completedCount}/2 Watched today`
+        };
+      }
+    }
+
     if (taskId === 'adsgram_interstitial') {
       const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
       const completedCount = completedSubtasks.length;
@@ -206,21 +228,43 @@ export function TasksTab() {
     }
 
     if (taskId === 'monetag_rewarded_interstitial') {
-      const status = getTaskStatus(taskId);
-      return {
-        isCompleted: status.isCompleted,
-        timeLeft: status.timeLeft,
-        subLabel: 'Watch a rewarded advertisement.'
-      };
+      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_interstitial_${num}`).isCompleted);
+      const completedCount = completedSubtasks.length;
+      
+      if (completedCount === 5) {
+        const lastStatus = getTaskStatus('monetag_rewarded_interstitial_5');
+        return {
+          isCompleted: true,
+          timeLeft: lastStatus.timeLeft,
+          subLabel: '5/5 Watched today'
+        };
+      } else {
+        return {
+          isCompleted: false,
+          timeLeft: 0,
+          subLabel: `${completedCount}/5 Watched today`
+        };
+      }
     }
 
     if (taskId === 'monetag_rewarded_popup') {
-      const status = getTaskStatus(taskId);
-      return {
-        isCompleted: status.isCompleted,
-        timeLeft: status.timeLeft,
-        subLabel: 'Watch the advertisement popup.'
-      };
+      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_popup_${num}`).isCompleted);
+      const completedCount = completedSubtasks.length;
+      
+      if (completedCount === 5) {
+        const lastStatus = getTaskStatus('monetag_rewarded_popup_5');
+        return {
+          isCompleted: true,
+          timeLeft: lastStatus.timeLeft,
+          subLabel: '5/5 Watched today'
+        };
+      } else {
+        return {
+          isCompleted: false,
+          timeLeft: 0,
+          subLabel: `${completedCount}/5 Watched today`
+        };
+      }
     }
 
     if (taskId === 'monetag_inapp_interstitial') {
@@ -245,6 +289,25 @@ export function TasksTab() {
     const { isCompleted } = getTaskStatusInfo(task.id);
     if (loadingTask || isCompleted) return;
     
+    // Custom check for Telegram Add to Home Screen task
+    if (task.id === 'sys_add_home') {
+      if (homeScreenStatus === 'added') {
+        setLoadingTask(task.id);
+        try {
+          await triggerBackendTaskCompletion('sys_add_home', 'system', 3000);
+          showToast('🎉 Added to Home Screen successfully! Boosted rate by +0.30 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      } else {
+        addToHomeScreen();
+        showToast('Please add the app to your Home Screen, then click CLAIM to receive your +0.30 USDT/day boost!', 'info');
+      }
+      return;
+    }
+
     // Ignore native Adsgram Task since it has its own HTML element handling
     if (task.id === 'adsgram_task') return;
 
@@ -266,9 +329,16 @@ export function TasksTab() {
       setLoadingTask(task.id);
 
       if (task.id === 'monetag_rewarded_interstitial') {
+        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_interstitial_${num}`).isCompleted);
+        const nextNum = completedSubtasks.length + 1;
+        if (nextNum > 5) {
+          setLoadingTask(null);
+          return;
+        }
+
         try {
           await showAd();
-          await triggerBackendTaskCompletion('monetag_rewarded_interstitial', 'monetag', 300);
+          await triggerBackendTaskCompletion(`monetag_rewarded_interstitial_${nextNum}`, 'monetag', 300);
         } catch (error) {
           console.warn('Monetag Rewarded Interstitial error/dismissed:', error);
           showToast('You must watch the advertisement completely to claim your reward!', 'error');
@@ -276,9 +346,16 @@ export function TasksTab() {
           setLoadingTask(null);
         }
       } else if (task.id === 'monetag_rewarded_popup') {
+        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_popup_${num}`).isCompleted);
+        const nextNum = completedSubtasks.length + 1;
+        if (nextNum > 5) {
+          setLoadingTask(null);
+          return;
+        }
+
         try {
           await showAd('pop');
-          await triggerBackendTaskCompletion('monetag_rewarded_popup', 'monetag', 200);
+          await triggerBackendTaskCompletion(`monetag_rewarded_popup_${nextNum}`, 'monetag', 200);
         } catch (error) {
           console.warn('Monetag Rewarded Popup error/dismissed:', error);
           showToast('You must interact with the advertisement completely to claim your reward!', 'error');
@@ -314,6 +391,10 @@ export function TasksTab() {
 
     if (task.id === 'adsgram_reward') {
       blockId = '46657'; // Adsgram Reward Block ID (Pure number as string)
+      const completedSubtasks = [1, 2].filter(num => getTaskStatus(`adsgram_reward_${num}`).isCompleted);
+      const nextNum = completedSubtasks.length + 1;
+      if (nextNum > 2) return;
+      finalTaskId = `adsgram_reward_${nextNum}`;
       rewardRateBoost = 200;
     } else if (task.id === 'adsgram_interstitial') {
       blockId = 'int-46658'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
@@ -411,19 +492,12 @@ export function TasksTab() {
       title: 'Add to Home Screen', 
       provider: 'system', 
       icon: <BookmarkPlus className="w-5 h-5" />,
-      rewardValue: '0.05',
+      rewardValue: '0.30',
       action: addToHomeScreen
     }
   ];
 
-  // Filter out the home screen task if it's explicitly unsupported and not already completed
-  const activeSysTasks = sysTasks.filter(t => {
-    const { isCompleted } = getTaskStatus(t.id);
-    if (t.id === 'sys_add_home' && homeScreenStatus === 'unsupported' && !isCompleted) {
-      return false; // Hide if completely unsupported on their device
-    }
-    return true;
-  });
+  const activeSysTasks = sysTasks;
 
   const renderTask = (task: Task, index: number) => {
     const { isCompleted, timeLeft, subLabel } = getTaskStatusInfo(task.id);
@@ -513,15 +587,21 @@ export function TasksTab() {
               key="start"
               whileTap={{ scale: 0.95 }}
               onClick={() => handleTaskClick(task)}
-              disabled={isLoading || (task.id === 'sys_add_home' && !canAddToHomeScreen)}
+              disabled={isLoading}
               className={cn(
                 "flex-shrink-0 px-3 py-1.5 text-[10px] font-black rounded-lg whitespace-nowrap transition-colors",
-                isLoading || (task.id === 'sys_add_home' && !canAddToHomeScreen) 
+                isLoading 
                   ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                  : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+                  : task.id === 'sys_add_home' && homeScreenStatus === 'added'
+                    ? "bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.45)] hover:bg-emerald-600 animate-pulse font-black"
+                    : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
               )}
             >
-              {isLoading ? '...' : 'START'}
+              {isLoading 
+                ? '...' 
+                : task.id === 'sys_add_home' 
+                  ? (homeScreenStatus === 'added' ? 'CLAIM' : 'START') 
+                  : 'START'}
             </motion.button>
           )}
         </AnimatePresence>
@@ -558,18 +638,18 @@ export function TasksTab() {
 
           <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
             <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>
-            </div>
-            {adsgramTasks.map((t, i) => renderTask(t, i))}
-          </motion.section>
-
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
             </div>
             {monetagTasks.map((t, i) => renderTask(t, i))}
+          </motion.section>
+
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>
+            </div>
+            {adsgramTasks.map((t, i) => renderTask(t, i))}
           </motion.section>
         </div>
       </div>

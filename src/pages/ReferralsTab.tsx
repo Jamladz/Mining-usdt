@@ -12,7 +12,8 @@ import {
   Trophy, 
   Medal, 
   Sparkles, 
-  Loader2 
+  Loader2,
+  Clock
 } from 'lucide-react';
 import { formatUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -437,86 +438,15 @@ export function ReferralsTab() {
                 </p>
               </div>
 
-              {/* Leaderboard List */}
-              <div className="bg-white rounded-[24px] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
-                <div className="flex items-center justify-between mb-4 px-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Rank & Miner</span>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Referrals</span>
+              {/* Coming Soon Placeholder */}
+              <div className="bg-white rounded-[24px] p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
+                  <Clock className="w-8 h-8 text-amber-500" />
                 </div>
-
-                {loadingLeaderboard ? (
-                  <div className="py-12 flex flex-col items-center justify-center text-center">
-                    <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-2" />
-                    <p className="text-xs font-bold text-slate-400">Loading Leaders...</p>
-                  </div>
-                ) : leaderboard.length > 0 ? (
-                  <div className="space-y-2">
-                    {leaderboard.map((item, index) => {
-                      const rank = index + 1;
-                      const isCurrentUser = item.id === user?.id;
-                      
-                      return (
-                        <div 
-                          key={item.id} 
-                          className={cn(
-                            "flex items-center justify-between p-3 rounded-xl transition-all border",
-                            isCurrentUser 
-                              ? "bg-amber-50/50 border-amber-200 shadow-sm" 
-                              : "bg-slate-50/50 border-slate-100 hover:border-slate-200"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            {/* Rank Indicator */}
-                            <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                              {rank === 1 ? (
-                                <Trophy className="w-5 h-5 text-amber-500" />
-                              ) : rank === 2 ? (
-                                <Medal className="w-5 h-5 text-slate-400" />
-                              ) : rank === 3 ? (
-                                <Medal className="w-5 h-5 text-amber-700" />
-                              ) : (
-                                <span className="text-xs font-black text-slate-400">{rank}</span>
-                              )}
-                            </div>
-
-                            {/* User Avatar & Name */}
-                            <div className="w-8 h-8 rounded-full bg-slate-200/80 flex items-center justify-center font-black text-xs relative overflow-hidden border border-white">
-                              {item.photoUrl ? (
-                                <img src={item.photoUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              ) : (
-                                <span className="text-slate-600">{item.firstName ? item.firstName.charAt(0).toUpperCase() : 'U'}</span>
-                              )}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <p className="text-xs font-black text-slate-900">
-                                  {item.firstName || 'Miner'}
-                                </p>
-                                {isCurrentUser && (
-                                  <span className="text-[8px] font-black bg-amber-500 text-white px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                    YOU
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[9px] font-bold text-slate-400">@{item.username || 'user'}</p>
-                            </div>
-                          </div>
-
-                          {/* Stat Count */}
-                          <div className="flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-slate-100 shadow-sm">
-                            <span className="text-xs font-black text-slate-800">{item.referralsCount}</span>
-                            <Users className="w-3.5 h-3.5 text-slate-400" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-12 flex flex-col items-center justify-center text-center">
-                    <p className="text-xs font-bold text-slate-400">No referrals found in the system yet.</p>
-                  </div>
-                )}
+                <h3 className="text-sm font-black text-slate-900 mb-2 tracking-tight">Coming Soon</h3>
+                <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[200px] mx-auto">
+                  The leaderboard is currently being prepared. Keep inviting friends to secure your top spot!
+                </p>
               </div>
             </motion.div>
           )}
