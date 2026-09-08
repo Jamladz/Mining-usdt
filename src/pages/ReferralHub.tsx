@@ -58,8 +58,8 @@ export function ReferralHub() {
     }
   };
   
-  // Custom prefix 'ref_tg_' as requested
-  const referralLink = `https://t.me/Miningusdt2027_bot?startapp=ref_tg_${user?.id || 'demo123'}`;
+  // Custom prefix 'ref_' as requested
+  const referralLink = `https://t.me/Miningusdt2027_bot?startapp=ref_${user?.id || 'demo123'}`;
 
   const MILESTONES = [
     { id: 'm1', target: 3, rewardUsdt: 0.3, rewardRate: 0.05 },

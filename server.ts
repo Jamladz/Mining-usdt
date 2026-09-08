@@ -144,32 +144,47 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       let claimedMilestonesInit = '[]';
       
       if (referredBy && referredBy !== userId) {
-        const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
-        if (referrer) {
-          // Grant Referrer Mining Rate Boost and instant cash reward of 0.1 USDT
-          await tx.update(users).set({
-            miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
-            balance: referrer.balance + REFERRER_CASH_REWARD,
-            totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
-          }).where(eq(users.id, referredBy));
-          
-          await tx.insert(referrals).values({
-            referrerId: referredBy,
-            referredUserId: userId,
-            rewardStatus: 'paid',
-            createdAt: Date.now()
-          });
-          
-          // Credit welcome bonus to new user balance instantly!
-          balanceInit = WELCOME_BONUS;
-          totalEarnedInit = WELCOME_BONUS;
-          claimedMilestonesInit = JSON.stringify(['welcome_claimed']);
-          
-          console.log(`[REFERRAL SUCCESS] Recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
-        } else {
-            console.log(`[REFERRAL WARN] Referrer ${referredBy} not found in database. Ignoring referral.`);
-            referredBy = null; // Invalid referrer
+        let referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
+        if (!referrer) {
+          referrer = await tx.insert(users).values({
+            id: referredBy,
+            username: `User_${referredBy}`,
+            firstName: `Miner`,
+            photoUrl: '',
+            balance: 0,
+            totalEarned: 0,
+            miningRate: BASE_MINING_RATE,
+            referralCode: referredBy,
+            referredBy: null,
+            claimedMilestones: '[]',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }).returning().get();
+          console.log(`[REFERRAL AUTO-CREATE] Created missing referrer profile for ID: ${referredBy}`);
         }
+
+        // Grant Referrer Mining Rate Boost and instant cash reward of 0.1 USDT
+        await tx.update(users).set({
+          miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
+          balance: referrer.balance + REFERRER_CASH_REWARD,
+          totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
+        }).where(eq(users.id, referredBy));
+        
+        await tx.insert(referrals).values({
+          referrerId: referredBy,
+          referredUserId: userId,
+          rewardStatus: 'paid',
+          createdAt: Date.now()
+        });
+        
+        // Credit welcome bonus to new user balance instantly!
+        balanceInit = WELCOME_BONUS;
+        totalEarnedInit = WELCOME_BONUS;
+        claimedMilestonesInit = JSON.stringify(['welcome_claimed']);
+        
+        console.log(`[REFERRAL SUCCESS] Recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
+      } else {
+        referredBy = null;
       }
 
       const newUser = await tx.insert(users).values({
@@ -208,16 +223,34 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     };
 
     if (referredBy && referredBy !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
-      // Validate referrer exists
-      const referrer = await db.select().from(users).where(eq(users.id, referredBy)).get();
-      if (referrer) {
-        const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
-        const REFERRER_CASH_REWARD = 1000; // 0.1 USDT instant reward
-        const WELCOME_BONUS = 7000; // 0.7 USDT welcome bonus
-        const MAX_MINING_RATE = 100000; // 0.15 USDT per day
+      const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
+      const REFERRER_CASH_REWARD = 1000; // 0.1 USDT instant reward
+      const WELCOME_BONUS = 7000; // 0.7 USDT welcome bonus
+      const MAX_MINING_RATE = 100000; // 0.15 USDT per day
+
+      // Perform in transaction to keep atomic
+      await db.transaction(async (tx) => {
+        let referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
+        if (!referrer) {
+          referrer = await tx.insert(users).values({
+            id: referredBy,
+            username: `User_${referredBy}`,
+            firstName: `Miner`,
+            photoUrl: '',
+            balance: 0,
+            totalEarned: 0,
+            miningRate: BASE_MINING_RATE,
+            referralCode: referredBy,
+            referredBy: null,
+            claimedMilestones: '[]',
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }).returning().get();
+          console.log(`[REFERRAL RETRO-CREATE] Created missing referrer profile for ID: ${referredBy}`);
+        }
 
         // Check if referral record already exists to prevent duplicate entries
-        const existingReferral = await db.select().from(referrals)
+        const existingReferral = await tx.select().from(referrals)
           .where(
             and(
               eq(referrals.referrerId, referredBy),
@@ -227,44 +260,38 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
           .get();
 
         if (!existingReferral) {
-          // Perform in transaction to keep atomic
-          await db.transaction(async (tx) => {
-            // Update referrer rate boost and credit 0.1 USDT cash
-            await tx.update(users).set({
-              miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
-              balance: referrer.balance + REFERRER_CASH_REWARD,
-              totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
-            }).where(eq(users.id, referredBy));
+          // Update referrer rate boost and credit 0.1 USDT cash
+          await tx.update(users).set({
+            miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
+            balance: referrer.balance + REFERRER_CASH_REWARD,
+            totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
+          }).where(eq(users.id, referredBy));
 
-            // Record the referral
-            await tx.insert(referrals).values({
-              referrerId: referredBy,
-              referredUserId: userId,
-              rewardStatus: 'paid',
-              createdAt: Date.now()
-            });
-            
-            // Credit welcome bonus to current user instantly inside transaction!
-            let claimedArr: string[] = [];
-            try {
-              claimedArr = JSON.parse(user.claimedMilestones || '[]');
-            } catch (e) {}
-            if (!claimedArr.includes('welcome_claimed')) {
-              claimedArr.push('welcome_claimed');
-            }
-            
-            updatedFields.balance = user.balance + WELCOME_BONUS;
-            updatedFields.totalEarned = user.totalEarned + WELCOME_BONUS;
-            updatedFields.claimedMilestones = JSON.stringify(claimedArr);
+          // Record the referral
+          await tx.insert(referrals).values({
+            referrerId: referredBy,
+            referredUserId: userId,
+            rewardStatus: 'paid',
+            createdAt: Date.now()
           });
-
-          // Set referredBy on current user
+          
+          // Credit welcome bonus to current user instantly inside transaction!
+          let claimedArr: string[] = [];
+          try {
+            claimedArr = JSON.parse(user.claimedMilestones || '[]');
+          } catch (e) {}
+          if (!claimedArr.includes('welcome_claimed')) {
+            claimedArr.push('welcome_claimed');
+          }
+          
+          updatedFields.balance = user.balance + WELCOME_BONUS;
+          updatedFields.totalEarned = user.totalEarned + WELCOME_BONUS;
+          updatedFields.claimedMilestones = JSON.stringify(claimedArr);
           updatedFields.referredBy = referredBy;
+          
           console.log(`[REFERRAL SUCCESS] Retroactively recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
         }
-      } else {
-        console.log(`[REFERRAL WARN] Retro-referrer ${referredBy} not found in database. Ignoring.`);
-      }
+      });
     }
 
     // Update profile pic/name & referral if changed
@@ -545,6 +572,7 @@ app.post('/api/referrals/milestone', requireUser, async (req: any, res: any) => 
   const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
   res.json({ success: true, user: updatedUser });
 });
+
 
 app.post('/api/referrals/claim-welcome', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
