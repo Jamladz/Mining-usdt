@@ -11,7 +11,8 @@ import {
   Gift, 
   Trophy, 
   Loader2,
-  Sparkles
+  Sparkles,
+  Rocket
 } from 'lucide-react';
 import { formatUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -24,8 +25,6 @@ export function ReferralHub() {
   const { user, setUser, isAuthCompleted, showToast } = useApp();
   const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState<ReferralRecord[]>([]);
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
   const [claimingMilestone, setClaimingMilestone] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'invite' | 'friends' | 'leaderboard'>('invite');
   
@@ -40,18 +39,6 @@ export function ReferralHub() {
     };
     loadData();
   }, [isAuthCompleted]);
-
-  useEffect(() => {
-    if (activeTab === 'leaderboard' && isAuthCompleted) {
-      const loadLeaderboard = async () => {
-        setLoadingLeaderboard(true);
-        const lb = await referralService.getReferralLeaderboard();
-        setLeaderboard(lb);
-        setLoadingLeaderboard(false);
-      };
-      loadLeaderboard();
-    }
-  }, [activeTab, isAuthCompleted]);
 
   const claimedMilestones = (() => {
     try {
@@ -200,20 +187,27 @@ export function ReferralHub() {
           )}
 
           {activeTab === 'leaderboard' && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2">
-              {loadingLeaderboard ? (
-                <div className="flex justify-center py-10"><Loader2 className="animate-spin text-slate-400" /></div>
-              ) : (
-                leaderboard.map((row, i) => (
-                  <div key={row.id} className={cn("flex justify-between items-center p-4 rounded-xl border", row.isCurrentUser ? "bg-amber-50 border-amber-200" : "bg-white border-slate-100")}>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-black text-slate-400 w-4">{i + 1}</span>
-                      <p className="text-xs font-black">{row.firstName || row.username}</p>
-                    </div>
-                    <span className="text-xs font-black">{row.referralsCount} refs</span>
-                  </div>
-                ))
-              )}
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -10 }} 
+              className="bg-white rounded-[32px] p-10 border border-slate-100 flex flex-col items-center justify-center text-center space-y-4 min-h-[300px]"
+            >
+              <div className="w-20 h-20 bg-amber-50 rounded-[24px] flex items-center justify-center relative">
+                <div className="absolute inset-0 bg-amber-200 rounded-[24px] animate-pulse opacity-20"></div>
+                <Rocket className="w-10 h-10 text-amber-600 relative z-10 animate-bounce" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Coming Soon</h3>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest max-w-[200px] leading-relaxed">
+                  The ultimate referral leaderboard is currently in development
+                </p>
+              </div>
+              <div className="pt-2">
+                <span className="bg-slate-100 text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] px-4 py-2 rounded-full">
+                  Stay Tuned
+                </span>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
