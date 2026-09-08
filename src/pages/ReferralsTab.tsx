@@ -151,10 +151,10 @@ export function ReferralsTab() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F5F7F9]">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F5F7F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
       <Header title="Referral Hub" />
       
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-20">
+      <div className="p-4 space-y-4 pb-24">
         
         {/* Main Stats */}
         <div className="grid grid-cols-2 gap-3">

@@ -93,10 +93,10 @@ export function ProfileTab() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F5F7F9]">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F5F7F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
       <Header title="Profile" />
       
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 pb-12">
+      <div className="p-4 space-y-4 pb-24">
         {/* User Card */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -136,7 +136,7 @@ export function ProfileTab() {
           >
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Available</p>
             <div className="flex items-center gap-1 min-w-0 w-full">
-              <USDT amount={formatUSDT(user?.balance || 0)} size="text-lg sm:text-xl text-white" iconSize="w-4 h-4 sm:w-5 sm:h-5 brightness-0 invert" className="truncate" />
+              <USDT amount={formatUSDT(user?.balance || 0)} size="text-lg sm:text-xl text-white" iconSize="w-4 h-4 sm:w-5 sm:h-5 brightness-0 invert" />
             </div>
           </motion.div>
           
@@ -148,7 +148,7 @@ export function ProfileTab() {
           >
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Withdrawn</p>
             <div className="flex items-center gap-1 min-w-0 w-full">
-              <USDT amount={formatUSDT(user?.totalWithdrawn || 0)} size="text-lg sm:text-xl text-slate-900" iconSize="w-4 h-4 sm:w-5 sm:h-5" className="truncate" />
+              <USDT amount={formatUSDT(user?.totalWithdrawn || 0)} size="text-lg sm:text-xl text-slate-900" iconSize="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </motion.div>
         </div>

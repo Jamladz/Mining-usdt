@@ -12,7 +12,7 @@ export function USDT({ amount, className, size = 'text-base', iconSize = 'w-5 h-
   return (
     <span className={cn("inline-flex items-center gap-1.5 font-black max-w-full min-w-0", size, className)}>
       <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT Icon" className={cn("object-contain shrink-0 drop-shadow-sm", iconSize)} />
-      {amount !== undefined && <span className="truncate">{amount}</span>}
+      {amount !== undefined && <span className="whitespace-nowrap">{amount}</span>}
     </span>
   );
 }

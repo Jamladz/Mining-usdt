@@ -124,25 +124,25 @@ export function HomeTab() {
   const progressPercent = timeLeft > 0 ? 100 - (timeLeft / CLAIM_COOLDOWN_MS) * 100 : 100;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F5F7F9]">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F5F7F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
       <Header title="Home" />
       
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-12 flex flex-col space-y-4">
+      <div className="p-4 pb-24 flex flex-col space-y-4">
         
         {/* Premium Balance Card */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center relative overflow-hidden"
+          className="bg-white rounded-[24px] p-4 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center relative overflow-hidden"
         >
           {/* Subtle background glow */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none"></div>
           
-          <p className="text-slate-400 text-xs font-bold mb-4 uppercase tracking-[0.2em] relative z-10 flex items-center gap-2">
+          <p className="text-slate-400 text-[11px] font-bold mb-2 uppercase tracking-[0.2em] relative z-10 flex items-center gap-2">
             YOUR BALANCE
           </p>
           
-          <div className="flex flex-col items-center justify-center space-y-4 relative z-10">
+          <div className="flex flex-col items-center justify-center space-y-2 relative z-10">
             <motion.div
               animate={{ 
                 y: [0, -3, 0],
@@ -156,11 +156,11 @@ export function HomeTab() {
               className="relative"
             >
               <div className="absolute inset-0 bg-emerald-400 blur-xl opacity-20 rounded-full"></div>
-              <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" className="w-10 h-10 object-contain relative z-10 drop-shadow-md" />
+              <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" className="w-8 h-8 sm:w-10 sm:h-10 object-contain relative z-10 drop-shadow-md" />
             </motion.div>
             
-            <h2 className="text-3xl sm:text-4xl leading-none font-black text-slate-900 tracking-tighter flex items-center justify-center w-full min-w-0">
-              <USDT amount={formatUSDT(user?.balance || 0)} size="text-3xl sm:text-4xl" iconSize="w-6 h-6 sm:w-8 sm:h-8" className="truncate" />
+            <h2 className="text-2xl sm:text-3xl leading-none font-black text-slate-900 tracking-tighter flex items-center justify-center w-full min-w-0">
+              <USDT amount={formatUSDT(user?.balance || 0)} size="text-2xl sm:text-3xl" iconSize="w-5 h-5 sm:w-7 sm:h-7" />
             </h2>
           </div>
         </motion.div>
@@ -248,7 +248,7 @@ export function HomeTab() {
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Mining Rate</p>
             </div>
             <div className="flex items-center gap-1 min-w-0 w-full">
-              <USDT amount={formatUSDT(user?.miningRate || 0)} size="text-lg sm:text-xl" iconSize="w-4 h-4 sm:w-5 sm:h-5" className="truncate" />
+              <USDT amount={formatUSDT(user?.miningRate || 0)} size="text-lg sm:text-xl" iconSize="w-4 h-4 sm:w-5 sm:h-5" />
               <span className="text-[10px] font-bold text-slate-400 mb-0.5 shrink-0">/24h</span>
             </div>
           </motion.div>
@@ -263,7 +263,7 @@ export function HomeTab() {
               <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Earned</p>
             </div>
             <div className="flex items-center gap-1 min-w-0 w-full">
-              <USDT amount={formatUSDT(user?.totalEarned || 0)} size="text-lg sm:text-xl" iconSize="w-4 h-4 sm:w-5 sm:h-5" className="truncate" />
+              <USDT amount={formatUSDT(user?.totalEarned || 0)} size="text-lg sm:text-xl" iconSize="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
           </motion.div>
         </div>
@@ -323,11 +323,12 @@ export function HomeTab() {
                     <div>
                       <p className="text-xs font-black text-slate-800">Successfully Claimed</p>
                       <p className="text-[9px] font-medium text-slate-400">
-                        {new Date(claim.claimedAt).toLocaleString(undefined, {
+                        {new Date(claim.claimedAt).toLocaleString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',
-                          minute: '2-digit'
+                          minute: '2-digit',
+                          hour12: true
                         })}
                       </p>
                     </div>

@@ -610,10 +610,10 @@ export function TasksTab() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-[#F5F7F9]">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F5F7F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
       <Header title="Earn More" />
       
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-12">
+      <div className="p-4 pb-24">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
