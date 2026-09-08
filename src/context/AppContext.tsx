@@ -276,18 +276,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const getStoredReferrer = (): Promise<string> => {
     return new Promise((resolve) => {
-      const cloudStorage = window.Telegram?.WebApp?.CloudStorage;
-      if (!cloudStorage) return resolve('');
+      const webApp = window.Telegram?.WebApp;
+      if (!webApp) return resolve(localStorage.getItem('pending_referrer') || '');
+      
+      const isCloudSupported = typeof webApp.isVersionAtLeast === 'function' && webApp.isVersionAtLeast('6.9') && !!webApp.CloudStorage;
+      if (!isCloudSupported) {
+        return resolve(localStorage.getItem('pending_referrer') || '');
+      }
+
       try {
-        cloudStorage.getItem('pending_referrer', (err, val) => {
+        webApp.CloudStorage.getItem('pending_referrer', (err, val) => {
           if (err || !val) {
-            resolve('');
+            resolve(localStorage.getItem('pending_referrer') || '');
           } else {
             resolve(val);
           }
         });
       } catch (e) {
-        resolve('');
+        resolve(localStorage.getItem('pending_referrer') || '');
       }
     });
   };
@@ -305,20 +311,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         } catch(e) {}
       }
 
-      const cloudStorage = window.Telegram?.WebApp?.CloudStorage;
       if (startParam) {
-        // Save to Telegram CloudStorage as backup
-        if (cloudStorage) {
+        // Save locally and cloud
+        localStorage.setItem('pending_referrer', startParam);
+        const webApp = window.Telegram?.WebApp;
+        if (webApp && typeof webApp.isVersionAtLeast === 'function' && webApp.isVersionAtLeast('6.9') && webApp.CloudStorage) {
           try {
-            cloudStorage.setItem('pending_referrer', startParam, () => {});
+            webApp.CloudStorage.setItem('pending_referrer', startParam, () => {});
           } catch (e) {}
         }
       } else {
-        // Fallback: load from Telegram CloudStorage
+        // Fallback: load from storage
         const backedUp = await getStoredReferrer();
         if (backedUp) {
           startParam = backedUp;
-          console.log('[FALLBACK LOGGER] Restored start_param from Telegram CloudStorage:', startParam);
+          console.log('[FALLBACK LOGGER] Restored start_param from storage:', startParam);
         }
       }
 
@@ -353,11 +360,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           );
         }
 
-        // Clear CloudStorage backup if referral is fully completed
-        if (newUser.referredBy && cloudStorage) {
-          try {
-            cloudStorage.removeItem('pending_referrer', () => {});
-          } catch (e) {}
+        // Clear backup if referral is fully completed
+        if (newUser.referredBy) {
+          localStorage.removeItem('pending_referrer');
+          const webApp = window.Telegram?.WebApp;
+          if (webApp && typeof webApp.isVersionAtLeast === 'function' && webApp.isVersionAtLeast('6.9') && webApp.CloudStorage) {
+            try {
+              webApp.CloudStorage.removeItem('pending_referrer', () => {});
+            } catch (e) {}
+          }
         }
 
         // Welcome reward notification
