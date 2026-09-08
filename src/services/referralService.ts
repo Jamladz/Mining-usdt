@@ -17,7 +17,7 @@ export const referralService = {
 
   async getShareTelegramLink(userId: string) {
     const url = this.getReferralLink(userId);
-    const text = "Join USDT Miner and start mining for free! 🚀 Get a welcome bonus when you join through my link!";
+    const text = "💰 Start mining USDT for free with instant withdrawals!\n🎁 Get a 0.7 USDT instant welcome bonus when you register using my link!\n🚀 Click the link and start earning now:";
     return `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
   },
 

@@ -138,8 +138,8 @@ export function ReferralHub() {
               <div className="bg-slate-900 rounded-[24px] p-5 text-white shadow-lg border border-slate-800">
                 <h2 className="text-lg font-black mb-1">Invite & Earn</h2>
                 <p className="text-[11px] text-slate-300 mb-4">
-                  Earn <span className="text-emerald-400">+{REFERRER_REWARD} coins</span> for every friend! 
-                  They get <span className="text-emerald-400">+{WELCOME_REFERRAL_REWARD} coins</span> welcome bonus.
+                  Earn <span className="text-emerald-400">+{formatUSDT(REFERRER_REWARD)} USDT</span> for every friend! 
+                  They get <span className="text-emerald-400">+{formatUSDT(WELCOME_REFERRAL_REWARD)} USDT</span> welcome bonus.
                 </p>
                 <div className="flex gap-2">
                   <button onClick={handleCopy} className="flex-1 bg-white/10 py-3 rounded-xl font-black text-[10px]">{copied ? 'COPIED!' : 'COPY'}</button>

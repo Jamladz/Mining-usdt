@@ -1,7 +1,7 @@
 import { ReferralMilestone } from '../types';
 
-export const WELCOME_REFERRAL_REWARD = 100;
-export const REFERRER_REWARD = 250;
+export const WELCOME_REFERRAL_REWARD = 7000;
+export const REFERRER_REWARD = 1000;
 
 export const REFERRAL_MILESTONES: ReferralMilestone[] = [
   { id: 'm1', targetCount: 3, rewardCoins: 500, rewardVipDays: 1 },

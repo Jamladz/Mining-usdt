@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { FAQSheet } from '../components/FAQSheet';
 
 
 const MIN_WITHDRAWAL = 3;
@@ -16,6 +17,7 @@ export function ProfileTab() {
   const [walletAddress, setWalletAddress] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+  const [isFAQOpen, setIsFAQOpen] = useState(false);
 
   useEffect(() => {
     fetchHistory();
@@ -126,9 +128,17 @@ export function ProfileTab() {
             )}
           </div>
           <div className="flex flex-col relative z-10">
-            <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center justify-center gap-1">
+            <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center justify-center gap-1.5">
               {user?.firstName}
               {user?.username && <span className="text-slate-400 font-medium text-sm">(@{user.username})</span>}
+              <button 
+                onClick={() => setIsFAQOpen(true)}
+                className="group relative w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 transition-all hover:scale-110 active:scale-95 ml-0.5"
+              >
+                <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-20 group-hover:opacity-40"></div>
+                <div className="absolute inset-0 bg-amber-300 rounded-full blur-sm opacity-40 animate-pulse"></div>
+                <HelpCircle className="w-3.5 h-3.5 relative z-10 drop-shadow-[0_0_3px_rgba(251,191,36,0.5)]" />
+              </button>
             </h2>
             <div className="flex items-center justify-center gap-1.5 mt-1.5">
               <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">Verified</span>
@@ -310,6 +320,8 @@ export function ProfileTab() {
         </motion.div>
         
       </div>
+
+      <FAQSheet isOpen={isFAQOpen} onClose={() => setIsFAQOpen(false)} />
     </div>
   );
 }

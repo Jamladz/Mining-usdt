@@ -20,8 +20,8 @@ const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 // Referral System Constants
-const WELCOME_REFERRAL_REWARD = 100; // 100 coins gift for the new user
-const REFERRER_REWARD = 250;       // 250 coins reward for the referrer
+const WELCOME_REFERRAL_REWARD = 7000; // 0.7 USDT gift for the new user
+const REFERRER_REWARD = 1000;       // 0.1 USDT reward for the referrer
 const REFERRER_RATE_BOOST = 200;    // +0.02 Mining Rate boost for the referrer
 
 const MILESTONES = [

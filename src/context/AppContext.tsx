@@ -370,7 +370,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (claimedArr.includes('welcome_claimed')) {
           const alreadyNotified = localStorage.getItem('notified_welcome_bonus');
           if (!alreadyNotified) {
-            showToast(<span>🎉 Congratulations! You received a free welcome gift of 100 coins!</span>, 'success');
+            showToast(
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[13px] font-black text-amber-200">🎉 Welcome Gift Received!</span>
+                <span className="text-[11px] font-bold text-white opacity-90">You've successfully claimed your 0.7 USDT registration bonus.</span>
+              </div>,
+              'success'
+            );
             localStorage.setItem('notified_welcome_bonus', 'true');
           }
         }
@@ -380,7 +386,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           if (prevUser && newUser.referralsCount > prevUser.referralsCount) {
             // Timeout to let the screen load beautifully
             setTimeout(() => {
-              showToast(<span>🎉 Awesome! A friend joined. +250 coins reward and a mining speed boost!</span>, 'success');
+              showToast(
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[13px] font-black text-amber-200">🎉 New Friend Joined!</span>
+                  <span className="text-[11px] font-bold text-white opacity-90">+0.1 USDT reward and a permanent mining speed boost have been added.</span>
+                </div>, 
+                'success'
+              );
             }, 1000);
           }
           return newUser;
