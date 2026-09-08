@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2 } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
 
-const MIN_WITHDRAWAL = 2;
+const MIN_WITHDRAWAL = 3;
 
 export function ProfileTab() {
-  const { user, setUser, fetchUser, initData, homeScreenStatus, canAddToHomeScreen, addToHomeScreen } = useApp();
+  const { user, setUser, fetchUser, initData, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, showToast } = useApp();
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -35,16 +35,27 @@ export function ProfileTab() {
 
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check 3 referrals constraint
+    const hasThreeReferrals = (user?.referralsCount || 0) >= 3;
+    if (!hasThreeReferrals) {
+      showToast(<span>🔒 Withdrawal Locked! You must refer at least 3 active friends to withdraw.</span>, 'error');
+      return;
+    }
+
     const amount = parseUSDT(withdrawAmount);
     
     if (!amount || amount < MIN_WITHDRAWAL) {
-      return alert('Minimum withdrawal is 2 USDT');
+      showToast('Minimum withdrawal amount is 3 USDT', 'error');
+      return;
     }
     if (amount > (user?.balance || 0)) {
-      return alert('Insufficient balance');
+      showToast('Insufficient balance in your account', 'error');
+      return;
     }
     if (!walletAddress.trim()) {
-      return alert('Enter a valid USDT wallet address');
+      showToast('Please enter a valid TRC20/BEP20 wallet address', 'error');
+      return;
     }
 
     setIsWithdrawing(true);
@@ -61,13 +72,13 @@ export function ProfileTab() {
       
       const data = await res.json();
       if (data.success) {
-        alert('Withdrawal requested successfully. Admin approval required.');
+         showToast('Withdrawal requested successfully. Admin review is underway.', 'success');
         setWithdrawAmount('');
         setWalletAddress('');
         await fetchUser();
         await fetchHistory();
       } else {
-        alert(data.error || 'Withdrawal failed');
+        showToast(data.error || 'Withdrawal request failed', 'error');
       }
     } catch (e) {
       console.warn('Backend not available, using local simulation for withdrawal');
@@ -84,7 +95,7 @@ export function ProfileTab() {
         status: 'pending',
         createdAt: new Date().toISOString()
       }, ...history]);
-      alert('Withdrawal requested successfully (Simulation Mode).');
+      showToast('Withdrawal requested successfully (Simulation Mode).', 'success');
       setWithdrawAmount('');
       setWalletAddress('');
     } finally {
@@ -171,24 +182,47 @@ export function ProfileTab() {
             </div>
           </div>
 
+          {/* Elegant Referral Lock Notice when referrals count is < 3 */}
+          {(user?.referralsCount || 0) < 3 && (
+            <div className="mb-4 bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex flex-col space-y-2 relative overflow-hidden z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                  <Lock className="w-3.5 h-3.5" />
+                </div>
+                <h4 className="text-[11px] font-black text-amber-950 uppercase tracking-wider">Withdrawal Locked</h4>
+              </div>
+              <p className="text-[10px] text-amber-800 leading-relaxed font-bold">
+                To prevent fraud and maintain system stability, you must refer at least <span className="font-black text-amber-950 text-xs">3 active friends</span> to unlock withdrawals.
+              </p>
+              <div className="flex items-center justify-between pt-2 mt-1 border-t border-amber-200/30 text-[10px] font-black text-amber-800">
+                <span>Progress: <span className="text-amber-950">{user?.referralsCount || 0} / 3</span></span>
+                <span className="bg-amber-600 text-white px-2 py-0.5 rounded-full text-[8px] uppercase tracking-wider font-extrabold shrink-0">
+                  {3 - (user?.referralsCount || 0)} More Needed
+                </span>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex flex-wrap items-center gap-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1 inline-flex items-center gap-1">(Min: <USDT amount="2" size="text-[9px]" iconSize="w-3 h-3 inline-block -mt-0.5" />)</span></label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex flex-wrap items-center gap-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1 inline-flex items-center gap-1">(Min: <USDT amount="3" size="text-[9px]" iconSize="w-3 h-3 inline-block -mt-0.5" />)</span></label>
               <div className="relative">
                 <input 
                   type="number"
                   step="0.0001"
-                  min="2"
+                  min="3"
+                  disabled={(user?.referralsCount || 0) < 3}
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.0000"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-black text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-300 placeholder:font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-black text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:bg-slate-100/50 disabled:cursor-not-allowed"
                 />
                 <motion.button 
                   whileTap={{ scale: 0.95 }}
                   type="button" 
+                  disabled={(user?.referralsCount || 0) < 3}
                   onClick={() => setWithdrawAmount(formatUSDT(user?.balance || 0))}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg hover:bg-emerald-200 transition-colors uppercase tracking-widest"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg hover:bg-emerald-200 transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   MAX
                 </motion.button>
@@ -199,21 +233,29 @@ export function ProfileTab() {
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1">Wallet Address (TRC20/BEP20)</label>
               <input 
                 type="text"
+                disabled={(user?.referralsCount || 0) < 3}
                 value={walletAddress}
                 onChange={(e) => setWalletAddress(e.target.value)}
                 placeholder="T..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-300 placeholder:font-medium"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:bg-slate-100/50 disabled:cursor-not-allowed"
               />
             </div>
 
             <motion.button 
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={isWithdrawing}
-              className="w-full mt-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black py-3 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
+              disabled={isWithdrawing || (user?.referralsCount || 0) < 3}
+              className="w-full mt-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
             >
-              <ArrowRightLeft className="w-3.5 h-3.5" />
-              <span>{isWithdrawing ? 'PROCESSING...' : 'REQUEST WITHDRAWAL'}</span>
+              {(user?.referralsCount || 0) < 3 ? <Lock className="w-3.5 h-3.5 text-slate-400 animate-pulse" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
+              <span>
+                {isWithdrawing 
+                  ? 'PROCESSING...' 
+                  : (user?.referralsCount || 0) < 3 
+                    ? '3 REFERRALS REQUIRED' 
+                    : 'REQUEST WITHDRAWAL'
+                }
+              </span>
             </motion.button>
           </form>
         </motion.div>

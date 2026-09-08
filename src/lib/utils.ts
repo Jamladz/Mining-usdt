@@ -5,7 +5,7 @@ export const USDT_SCALE = 10000;
 export const BASE_MINING_RATE = 1000; // 0.10 USDT
 export const MAX_MINING_RATE = 1500; // 0.15 USDT
 export const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-export const MIN_WITHDRAWAL = 20000; // 2 USDT
+export const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 export const formatUSDT = (value: number) => {
   return (value / USDT_SCALE).toFixed(4);

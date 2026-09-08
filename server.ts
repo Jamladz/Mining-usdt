@@ -17,7 +17,7 @@ const USDT_SCALE = 10000; // 1 USDT = 10000 units
 const BASE_MINING_RATE = 1000; // 0.10 USDT per day
 const MAX_MINING_RATE = 100000; // 0.15 USDT per day
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
-const MIN_WITHDRAWAL = 20000; // 2 USDT
+const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 const MILESTONES = [
   { id: 'm1', target: 3, rewardUsdt: 3000, rewardRate: 500 }, // 0.3 USDT, +0.05 Rate
@@ -418,7 +418,13 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   const { amount, walletAddress } = req.body; // amount is in USDT_SCALE
   
   if (!amount || !walletAddress) return res.status(400).json({ error: 'Missing withdrawal details' });
-  if (amount < MIN_WITHDRAWAL) return res.status(400).json({ error: 'Minimum withdrawal is 2 USDT' });
+  if (amount < MIN_WITHDRAWAL) return res.status(400).json({ error: 'Minimum withdrawal is 3 USDT' });
+
+  // Enforce 3 referrals limit
+  const userReferrals = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).all();
+  if (userReferrals.length < 3) {
+    return res.status(400).json({ error: 'You must refer at least 3 active friends to withdraw funds.' });
+  }
 
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user || user.balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
