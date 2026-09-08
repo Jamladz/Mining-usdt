@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { USDT } from '../components/USDT';
+import { syncUserToFirebase } from '../lib/firebase';
 
 export interface TelegramUser {
   id: number;
@@ -104,6 +105,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       try {
         localStorage.setItem('usdt_miner_user_data', JSON.stringify(user));
+        syncUserToFirebase(user);
       } catch (e) {}
     }
   }, [user]);

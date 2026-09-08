@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "User": {
+      "title": "Telegram User Profile",
+      "description": "Public profile of a USDT Mining Telegram user, identified by their Telegram ID",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The Telegram User ID as string" },
+        "username": { "type": "string", "description": "Telegram username" },
+        "firstName": { "type": "string", "description": "Telegram first name" },
+        "photoUrl": { "type": "string", "description": "Avatar photo URL" },
+        "referralsCount": { "type": "integer", "description": "Number of users referred by this user" },
+        "totalEarned": { "type": "number", "description": "Total USDT earned (scaled or raw decimal)" },
+        "miningRate": { "type": "number", "description": "Current mining speed rate" },
+        "lastActive": { "type": "string", "format": "date-time", "description": "Server timestamp of last active session sync" }
+      },
+      "required": ["id", "firstName"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles indexed by their Telegram User ID"
+    }
+  }
+}

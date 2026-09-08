@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny for all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Public users collection for Telegram ID search and profile synchronization
+    match /users/{userId} {
+      // Read is open to allow searching by any Telegram user
+      allow read: if true;
+      
+      // Write is allowed to synchronize their own Telegram Profile
+      allow create, update: if request.resource.data.id == userId;
+    }
+  }
+}

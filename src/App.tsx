@@ -8,7 +8,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './pages/HomeTab';
 import { TasksTab } from './pages/TasksTab';
-import { ReferralsTab } from './pages/ReferralsTab';
+import { ReferralHub } from './pages/ReferralHub';
 import { ProfileTab } from './pages/ProfileTab';
 import { WelcomeClaimSheet } from './components/WelcomeClaimSheet';
 import { AnimatePresence, motion } from 'motion/react';
@@ -47,7 +47,7 @@ function AppContent() {
           )}
           {currentTab === 'referrals' && (
             <motion.div key="referrals" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              <ReferralsTab />
+              <ReferralHub />
             </motion.div>
           )}
           {currentTab === 'profile' && (
