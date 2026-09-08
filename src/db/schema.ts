@@ -11,6 +11,8 @@ export const users = sqliteTable('users', {
   miningRate: integer('mining_rate').default(1000), // base 1000 = 0.10 USDT
   referralCode: text('referral_code').unique(),
   referredBy: text('referred_by'),
+  referralsCount: integer('referrals_count').default(0),
+  earnedReferralCoins: integer('earned_referral_coins').default(0),
   lastClaimAt: integer('last_claim_at'),
   createdAt: integer('created_at').default(Date.now()),
   claimedMilestones: text('claimed_milestones').default('[]'),
@@ -37,7 +39,7 @@ export const taskCompletions = sqliteTable('task_completions', {
 export const referrals = sqliteTable('referrals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   referrerId: text('referrer_id').notNull(),
-  referredUserId: text('referred_user_id').notNull(),
+  referredUserId: text('referred_user_id').notNull().unique(),
   rewardStatus: text('reward_status').default('pending'),
   createdAt: integer('created_at').notNull(),
 });
