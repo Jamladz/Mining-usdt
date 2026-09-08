@@ -15,7 +15,7 @@ const PORT = 3000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
 const USDT_SCALE = 10000; // 1 USDT = 10000 units
 const BASE_MINING_RATE = 1000; // 0.10 USDT per day
-const MAX_MINING_RATE = 1500; // 0.15 USDT per day
+const MAX_MINING_RATE = 100000; // 0.15 USDT per day
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MIN_WITHDRAWAL = 20000; // 2 USDT
 
@@ -207,14 +207,14 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       photoUrl: tgUser.photo_url || user.photoUrl,
     };
 
-    if (referredBy && referredBy !== userId && !user.referredBy) {
+    if (referredBy && referredBy !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
       // Validate referrer exists
       const referrer = await db.select().from(users).where(eq(users.id, referredBy)).get();
       if (referrer) {
         const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
         const REFERRER_CASH_REWARD = 1000; // 0.1 USDT instant reward
         const WELCOME_BONUS = 7000; // 0.7 USDT welcome bonus
-        const MAX_MINING_RATE = 1500; // 0.15 USDT per day
+        const MAX_MINING_RATE = 100000; // 0.15 USDT per day
 
         // Check if referral record already exists to prevent duplicate entries
         const existingReferral = await db.select().from(referrals)

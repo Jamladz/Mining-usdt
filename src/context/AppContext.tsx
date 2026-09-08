@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { USDT } from '../components/USDT';
 
 export interface TelegramUser {
   id: number;
@@ -78,7 +79,7 @@ interface AppContextType {
   addToHomeScreen: () => void;
   safeAreaSupported: boolean;
   contentSafeAreaSupported: boolean;
-  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
+  showToast: (message: React.ReactNode, type?: 'success' | 'error' | 'info') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -111,9 +112,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [canFullscreen, setCanFullscreen] = useState(false);
   const [homeScreenStatus, setHomeScreenStatus] = useState<'unsupported' | 'unknown' | 'added' | 'missed' | 'checking'>('checking');
   const [canAddToHomeScreen, setCanAddToHomeScreen] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: React.ReactNode; type: 'success' | 'error' | 'info' } | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  const showToast = (message: React.ReactNode, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({ message, type });
     if (window.Telegram?.WebApp?.HapticFeedback) {
       try {
@@ -304,7 +305,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (claimedArr.includes('welcome_claimed')) {
           const alreadyNotified = localStorage.getItem('notified_welcome_bonus');
           if (!alreadyNotified) {
-            showToast('🎉 تهانينا! لقد حصلت على هدية ترحيبية بقيمة 0.7 USDT مجاناً!', 'success');
+            showToast(<span>🎉 Congratulations! You received a free welcome gift of <USDT amount="0.7" size="text-xs" iconSize="w-3 h-3 inline-block -mt-0.5" />!</span>, 'success');
             localStorage.setItem('notified_welcome_bonus', 'true');
           }
         }
@@ -315,7 +316,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const diff = newUser.referralsCount - prevUser.referralsCount;
             // Timeout to let the screen load beautifully
             setTimeout(() => {
-              showToast(`🎉 رائِع! قام صديق بالتسجيل من خلال رابطك. تم إيداع 0.1 USDT مكافأة فورية وزيادة سرعة التعدين!`, 'success');
+              showToast(<span>🎉 Awesome! A friend registered using your link. A <USDT amount="0.1" size="text-xs" iconSize="w-3 h-3 inline-block -mt-0.5" /> instant reward and a mining speed boost have been deposited!</span>, 'success');
             }, 1000);
           }
           return newUser;

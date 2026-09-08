@@ -479,7 +479,7 @@ export function TasksTab() {
           <div className="flex flex-col min-w-0 justify-center">
             <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
             <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5", isCompleted ? "text-slate-400" : "text-emerald-600")}>
-              <span>+{reward} <USDT size="text-[9px]" iconSize="w-3 h-3" /> / 24H</span>
+              <span><USDT amount={'+' + reward} size="text-[9px]" iconSize="w-3 h-3" /> / 24H</span>
               <span className="text-slate-300">•</span>
               <span className="text-slate-400 normal-case tracking-normal">{subLabel}</span>
             </p>

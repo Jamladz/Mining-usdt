@@ -28,7 +28,7 @@ export function ReferralsTab() {
   const [activeTab, setActiveTab] = useState<'invite' | 'friends' | 'leaderboard'>('invite');
   
   // Custom prefix 'ref_' as requested
-  const referralLink = `https://t.me/Miningusdt2027_bot?startapp=ref_${user?.id || 'demo123'}`;
+  const referralLink = `https://t.me/Miningusdt2027_bot/app?startapp=ref_${user?.id || 'demo123'}`;
 
   const MILESTONES = [
     { id: 'm1', target: 3, rewardUsdt: 0.3, rewardRate: 0.05 },
@@ -88,14 +88,14 @@ export function ReferralsTab() {
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
-    showToast('📋 تم نسخ رابط الإحالة بنجاح!', 'success');
+    showToast('📋 Referral link copied successfully!', 'success');
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = () => {
-    const text = `💰 ابدأ تعدين عملة USDT مجاناً وسحب فوري!
-🎁 احصل على 0.7 USDT هدية ترحيبية فورية عند التسجيل من الرابط الخاص بي!
-🚀 اضغط على الرابط وابدأ الربح الآن:`;
+    const text = `💰 Start mining USDT for free with instant withdrawals!
+🎁 Get a 0.7 USDT instant welcome bonus when you register using my link!
+🚀 Click the link and start earning now:`;
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(text)}`;
     if (window.Telegram?.WebApp) {
       window.Telegram.WebApp.openTelegramLink(shareUrl);
@@ -128,7 +128,7 @@ export function ReferralsTab() {
           ...data.user,
           referralsCount: currentRefs
         });
-        showToast(`🎉 مبروك! لقد حصلت على +${m.rewardUsdt} USDT وزيادة سرعة تعدين!`, 'success');
+        showToast(`🎉 Congratulations! You received +${m.rewardUsdt} USDT and a mining speed boost!`, 'success');
       } else {
         throw new Error(data.error);
       }
@@ -142,7 +142,7 @@ export function ReferralsTab() {
           miningRate: (user.miningRate || 0) + (m.rewardRate * 10000), 
           claimedMilestones: JSON.stringify(newClaimed)
         });
-        showToast(`🎉 مبروك! لقد حصلت على +${m.rewardUsdt} USDT وزيادة سرعة تعدين!`, 'success');
+        showToast(`🎉 Congratulations! You received +${m.rewardUsdt} USDT and a mining speed boost!`, 'success');
       }
     } finally {
       setClaimingMilestone(null);
@@ -201,7 +201,7 @@ export function ReferralsTab() {
             )}
           >
             <Gift className="w-3.5 h-3.5" />
-            <span>الدعوة والإنجازات</span>
+            <span>Invite & Achievements</span>
           </button>
           <button
             onClick={() => setActiveTab('friends')}
@@ -213,7 +213,7 @@ export function ReferralsTab() {
             )}
           >
             <Users className="w-3.5 h-3.5" />
-            <span>قائمة الأصدقاء</span>
+            <span>Friends List</span>
           </button>
           <button
             onClick={() => setActiveTab('leaderboard')}
@@ -225,7 +225,7 @@ export function ReferralsTab() {
             )}
           >
             <Trophy className="w-3.5 h-3.5" />
-            <span>لوحة المتصدرين</span>
+            <span>Leaderboard</span>
           </button>
         </div>
 
@@ -249,7 +249,7 @@ export function ReferralsTab() {
                   </span>
                   <h2 className="text-lg font-black tracking-tight mb-1">Invite Friends & Boost Rate</h2>
                   <p className="text-[11px] text-slate-300 font-medium leading-relaxed mb-4">
-                    Get <strong className="text-emerald-400">+0.02 USDT/day</strong> mining boost for every friend who joins! New friends get <strong className="text-emerald-400">0.7 USDT</strong> registration gift!
+                    Get <strong className="text-emerald-400 inline-flex items-center gap-0.5"><USDT amount="+0.02" size="text-[11px]" iconSize="w-3 h-3" />/day</strong> mining boost for every friend who joins! New friends get <strong className="text-emerald-400 inline-flex items-center"><USDT amount="0.7" size="text-[11px]" iconSize="w-3 h-3" /></strong> registration gift!
                   </p>
                   <div className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/10">
                     <p className="text-xs font-mono truncate text-slate-200">{referralLink}</p>
@@ -276,11 +276,35 @@ export function ReferralsTab() {
                 </div>
               </div>
 
+              {/* How it works */}
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-[24px] space-y-3">
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-1">
+                  How the System Works
+                </h3>
+                <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 flex flex-col items-center shadow-sm">
+                    <span className="text-lg mb-1.5 drop-shadow-sm">📲</span>
+                    <span className="text-slate-900 font-black leading-tight">1. Share</span>
+                    <span className="text-slate-500 text-[9px] mt-0.5">With friends</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 flex flex-col items-center shadow-sm">
+                    <span className="text-lg mb-1.5 drop-shadow-sm">🎁</span>
+                    <span className="text-slate-900 font-black leading-tight">2. They Get</span>
+                    <span className="text-emerald-600 font-bold text-[9px] mt-0.5 inline-flex items-center gap-0.5"><USDT amount="0.7" size="text-[9px]" iconSize="w-2.5 h-2.5" /> Bonus</span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 flex flex-col items-center shadow-sm">
+                    <span className="text-lg mb-1.5 drop-shadow-sm">👑</span>
+                    <span className="text-slate-900 font-black leading-tight">3. You Get</span>
+                    <span className="text-emerald-600 font-bold text-[9px] mt-0.5 inline-flex items-center flex-wrap justify-center gap-0.5"><USDT amount="+0.1" size="text-[9px]" iconSize="w-2.5 h-2.5" /> & Rate</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Achievements */}
               <div>
                 <div className="flex items-center gap-2 mb-3 px-1">
                   <Gift className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Achievements (الإنجازات)</h3>
+                  <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Achievements</h3>
                 </div>
                 
                 <div className="space-y-3">
@@ -299,7 +323,7 @@ export function ReferralsTab() {
                           <div>
                             <h4 className="text-[13px] font-black text-slate-900">Invite {m.target} Friends</h4>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase">+{m.rewardUsdt} USDT</span>
+                              <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded uppercase"><USDT amount={'+' + m.rewardUsdt} size="text-[10px]" iconSize="w-3 h-3" /></span>
                               <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1"><Pickaxe className="w-3 h-3"/> +{m.rewardRate}/day</span>
                             </div>
                           </div>
@@ -352,7 +376,7 @@ export function ReferralsTab() {
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-slate-800" />
-                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">My Network (أصدقائي)</h3>
+                  <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest">My Network</h3>
                 </div>
                 <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">{friends.length}</span>
               </div>
@@ -371,7 +395,7 @@ export function ReferralsTab() {
                         </div>
                       </div>
                       <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded">
-                        +0.02 USDT/day
+                        <USDT amount="+0.02" size="text-[10px]" iconSize="w-3 h-3" />/day
                       </div>
                     </div>
                   ))}
@@ -383,7 +407,7 @@ export function ReferralsTab() {
                   </div>
                   <p className="text-xs font-black text-slate-800">No Friends Invited Yet</p>
                   <p className="text-[10px] font-medium text-slate-400 mt-1 max-w-[200px] mx-auto leading-relaxed">
-                    Invite friends using your unique referral link to build your mining network and claim free bonus USDT!
+                    Invite friends using your unique referral link to build your mining network and claim free bonus <USDT size="text-[10px]" iconSize="w-3 h-3 inline-block -mt-0.5" />!
                   </p>
                 </div>
               )}
@@ -409,7 +433,7 @@ export function ReferralsTab() {
                   </div>
                 </div>
                 <p className="text-[11px] text-amber-50 font-medium relative z-10 leading-relaxed max-w-xs">
-                  كبار التعدين! تسابق مع مجتمع USDT Miner واكسب ألقابًا ومكافآت مميزة من خلال بناء شبكة إحالات نشطة.
+                  Top Miners! Compete with the MINING USDT community and earn exclusive titles and rewards by building an active referral network.
                 </p>
               </div>
 

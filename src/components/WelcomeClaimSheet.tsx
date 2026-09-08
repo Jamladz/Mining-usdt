@@ -96,7 +96,7 @@ export function WelcomeClaimSheet() {
                 disabled={isClaiming}
                 className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-2xl text-sm transition-all shadow-[0_8px_20px_rgba(15,23,42,0.15)] flex items-center justify-center gap-2"
               >
-                {isClaiming ? 'Claiming...' : 'Claim 0.7 USDT'}
+                {isClaiming ? 'Claiming...' : <span className="flex items-center gap-1">Claim <USDT amount="0.7" size="text-sm" iconSize="w-4 h-4" /></span>}
               </motion.button>
             </div>
           </motion.div>

@@ -160,7 +160,7 @@ export function HomeTab() {
               >
                 <Sparkles className="w-6 h-6 text-emerald-500 mb-1" />
                 <span className="text-emerald-700 font-black tracking-tight">REWARD CLAIMED</span>
-                <span className="text-emerald-600/80 text-xs font-bold flex items-center gap-1">+{formatUSDT(user?.miningRate || 0)} <USDT size="text-xs" iconSize="w-3 h-3" /> added to balance</span>
+                <span className="text-emerald-600/80 text-xs font-bold flex items-center gap-1"><USDT amount={'+' + formatUSDT(user?.miningRate || 0)} size="text-xs" iconSize="w-3 h-3" /> added to balance</span>
               </motion.div>
             ) : timeLeft > 0 ? (
               <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
