@@ -4,6 +4,7 @@ import { CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { USDT } from '../components/USDT';
 import { syncUserToFirebase } from '../lib/firebase';
+import { User } from '../types';
 
 export interface TelegramUser {
   id: number;
@@ -74,8 +75,8 @@ interface AppContextType {
   initData: string | null;
   tgVersion: string;
   tgPlatform: string;
-  user: any | null; // Database user object
-  setUser: React.Dispatch<React.SetStateAction<any>>;
+  user: User | null; // Database user object
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   fetchUser: () => Promise<void>;
   isFullscreen: boolean;
   toggleFullscreen: () => void;
@@ -99,7 +100,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [safeAreaSupported, setSafeAreaSupported] = useState<boolean>(false);
   const [contentSafeAreaSupported, setContentSafeAreaSupported] = useState<boolean>(false);
   const [isAuthCompleted, setIsAuthCompleted] = useState<boolean>(false);
-  const [user, setUser] = useState<any>(() => {
+  const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('usdt_miner_user_data');
       return saved ? JSON.parse(saved) : null;
@@ -346,8 +347,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (data.isNewUser && (!data.user.referredBy || data.user.referredBy.trim() === '')) {
           showToast(
             <div className="text-left font-bold py-1">
-              <span className="text-[13px] text-amber-300 block mb-1 font-black">⚠️ رابط الدعوة لم يُقرأ بنجاح!</span>
-              <span className="text-[11px] font-bold text-slate-100 block leading-relaxed">يرجى إعادة فتح اللعبة من رابط إحالة صديقك مباشرة داخل تطبيق تيليجرام للحصول على مكافأة الترحيب 0.70 USDT.</span>
+              <span className="text-[13px] text-amber-300 block mb-1 font-black">⚠️ Referral link not detected!</span>
+              <span className="text-[11px] font-bold text-slate-100 block leading-relaxed">Please open the bot from your friend's referral link to claim your 100 coins welcome bonus.</span>
             </div>,
             'info'
           );
@@ -369,18 +370,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (claimedArr.includes('welcome_claimed')) {
           const alreadyNotified = localStorage.getItem('notified_welcome_bonus');
           if (!alreadyNotified) {
-            showToast(<span>🎉 Congratulations! You received a free welcome gift of <USDT amount="0.7" size="text-xs" iconSize="w-3 h-3 inline-block -mt-0.5" />!</span>, 'success');
+            showToast(<span>🎉 Congratulations! You received a free welcome gift of 100 coins!</span>, 'success');
             localStorage.setItem('notified_welcome_bonus', 'true');
           }
         }
 
         // Referral count increase notification
-        setUser((prevUser: any) => {
+        setUser((prevUser: User | null) => {
           if (prevUser && newUser.referralsCount > prevUser.referralsCount) {
-            const diff = newUser.referralsCount - prevUser.referralsCount;
             // Timeout to let the screen load beautifully
             setTimeout(() => {
-              showToast(<span>🎉 Awesome! A friend registered using your link. A <USDT amount="0.1" size="text-xs" iconSize="w-3 h-3 inline-block -mt-0.5" /> instant reward and a mining speed boost have been deposited!</span>, 'success');
+              showToast(<span>🎉 Awesome! A friend joined. +250 coins reward and a mining speed boost!</span>, 'success');
             }, 1000);
           }
           return newUser;

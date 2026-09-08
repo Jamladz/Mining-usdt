@@ -8,7 +8,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './pages/HomeTab';
 import { TasksTab } from './pages/TasksTab';
-import { ReferralHub } from './pages/ReferralHub';
+import { ReferralHub } from './components/ReferralHub';
 import { ProfileTab } from './pages/ProfileTab';
 import { WelcomeClaimSheet } from './components/WelcomeClaimSheet';
 import { AnimatePresence, motion } from 'motion/react';

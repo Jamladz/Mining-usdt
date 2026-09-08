@@ -20,16 +20,15 @@ const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 // Referral System Constants
-const WELCOME_REFERRAL_REWARD = 7000; // 0.7 USDT gift for the new user
-const REFERRER_REWARD = 1000;       // 0.1 USDT reward for the referrer
+const WELCOME_REFERRAL_REWARD = 100; // 100 coins gift for the new user
+const REFERRER_REWARD = 250;       // 250 coins reward for the referrer
 const REFERRER_RATE_BOOST = 200;    // +0.02 Mining Rate boost for the referrer
 
 const MILESTONES = [
-  { id: 'm1', target: 3, rewardUsdt: 3000, rewardRate: 500 }, // 0.3 USDT, +0.05 Rate
-  { id: 'm2', target: 10, rewardUsdt: 10000, rewardRate: 1000 }, // 1.0 USDT, +0.10 Rate
-  { id: 'm3', target: 25, rewardUsdt: 25000, rewardRate: 2000 }, // 2.5 USDT, +0.20 Rate
-  { id: 'm4', target: 50, rewardUsdt: 50000, rewardRate: 5000 }, // 5.0 USDT, +0.50 Rate
-  { id: 'm5', target: 100, rewardUsdt: 100000, rewardRate: 10000 }, // 10.0 USDT, +1.0 Rate
+  { id: 'm1', target: 3, rewardUsdt: 500, rewardRate: 500 }, 
+  { id: 'm2', target: 5, rewardUsdt: 1000, rewardRate: 1000 },
+  { id: 'm3', target: 10, rewardUsdt: 2500, rewardRate: 2000 },
+  { id: 'm4', target: 25, rewardUsdt: 7000, rewardRate: 5000 },
 ];
 
 // Utility: Validate Telegram initData
