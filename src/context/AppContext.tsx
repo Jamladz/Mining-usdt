@@ -54,6 +54,11 @@ interface WebApp {
     notificationOccurred: (type: 'error' | 'success' | 'warning') => void;
     selectionChanged: () => void;
   };
+  CloudStorage?: {
+    setItem: (key: string, value: string, callback?: (err: any, success: boolean) => void) => void;
+    getItem: (key: string, callback: (err: any, value: string) => void) => void;
+    removeItem: (key: string, callback?: (err: any, success: boolean) => void) => void;
+  };
 }
 
 declare global {
@@ -81,6 +86,7 @@ interface AppContextType {
   safeAreaSupported: boolean;
   contentSafeAreaSupported: boolean;
   showToast: (message: React.ReactNode, type?: 'success' | 'error' | 'info') => void;
+  isAuthCompleted: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -92,6 +98,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [tgPlatform, setTgPlatform] = useState<string>('unknown');
   const [safeAreaSupported, setSafeAreaSupported] = useState<boolean>(false);
   const [contentSafeAreaSupported, setContentSafeAreaSupported] = useState<boolean>(false);
+  const [isAuthCompleted, setIsAuthCompleted] = useState<boolean>(false);
   const [user, setUser] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('usdt_miner_user_data');
@@ -267,6 +274,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const getStoredReferrer = (): Promise<string> => {
+    return new Promise((resolve) => {
+      const cloudStorage = window.Telegram?.WebApp?.CloudStorage;
+      if (!cloudStorage) return resolve('');
+      try {
+        cloudStorage.getItem('pending_referrer', (err, val) => {
+          if (err || !val) {
+            resolve('');
+          } else {
+            resolve(val);
+          }
+        });
+      } catch (e) {
+        resolve('');
+      }
+    });
+  };
+
   const fetchUser = async () => {
     if (!initData) return;
     try {
@@ -278,6 +303,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const urlParams = new URLSearchParams(window.location.search || window.location.hash.replace('#', '?'));
           startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('startapp') || urlParams.get('start') || '';
         } catch(e) {}
+      }
+
+      const cloudStorage = window.Telegram?.WebApp?.CloudStorage;
+      if (startParam) {
+        // Save to Telegram CloudStorage as backup
+        if (cloudStorage) {
+          try {
+            cloudStorage.setItem('pending_referrer', startParam, () => {});
+          } catch (e) {}
+        }
+      } else {
+        // Fallback: load from Telegram CloudStorage
+        const backedUp = await getStoredReferrer();
+        if (backedUp) {
+          startParam = backedUp;
+          console.log('[FALLBACK LOGGER] Restored start_param from Telegram CloudStorage:', startParam);
+        }
       }
 
       const res = await fetch('/api/auth', {
@@ -297,6 +339,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           referralsCount: data.referralsCount || 0,
           referralBonusEarned: data.referralBonusEarned || 0 
         };
+
+        setIsAuthCompleted(true);
+
+        // Warning Toast if new registration without start_param (or if referral wasn't successfully linked)
+        if (data.isNewUser && (!data.user.referredBy || data.user.referredBy.trim() === '')) {
+          showToast(
+            <div className="text-left font-bold py-1">
+              <span className="text-[13px] text-amber-300 block mb-1 font-black">⚠️ رابط الدعوة لم يُقرأ بنجاح!</span>
+              <span className="text-[11px] font-bold text-slate-100 block leading-relaxed">يرجى إعادة فتح اللعبة من رابط إحالة صديقك مباشرة داخل تطبيق تيليجرام للحصول على مكافأة الترحيب 0.70 USDT.</span>
+            </div>,
+            'info'
+          );
+        }
+
+        // Clear CloudStorage backup if referral is fully completed
+        if (newUser.referredBy && cloudStorage) {
+          try {
+            cloudStorage.removeItem('pending_referrer', () => {});
+          } catch (e) {}
+        }
 
         // Welcome reward notification
         let claimedArr: string[] = [];
@@ -352,7 +414,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [initData]);
 
   return (
-    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, setUser, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported, showToast }}>
+    <AppContext.Provider value={{ tgData, initData, tgVersion, tgPlatform, user, setUser, fetchUser, isFullscreen, toggleFullscreen, canFullscreen, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, safeAreaSupported, contentSafeAreaSupported, showToast, isAuthCompleted }}>
       {children}
 
       <AnimatePresence>

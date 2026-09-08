@@ -29,8 +29,8 @@ const MILESTONES = [
 
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
-  if (process.env.NODE_ENV === 'development' || BOT_TOKEN === 'mock_token') {
-    // In dev mode without a real token, parse it blindly or return a mock user
+  // In development, allow bypass if token is mock_token
+  if (process.env.NODE_ENV !== 'production' && BOT_TOKEN === 'mock_token') {
     try {
       const urlParams = new URLSearchParams(initData);
       const userStr = urlParams.get('user');
@@ -39,6 +39,11 @@ function validateInitData(initData: string): any {
     } catch {
       return { id: 12345, username: 'dev_user', first_name: 'Dev' };
     }
+  }
+
+  // Fail-fast in production if token is mock_token or empty
+  if (!BOT_TOKEN || BOT_TOKEN === 'mock_token') {
+    throw new Error('Telegram Bot Token (TELEGRAM_BOT_TOKEN) is not configured in production mode!');
   }
 
   const urlParams = new URLSearchParams(initData);
@@ -118,11 +123,13 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   const userId = tgUser.id.toString();
   
   let user = await db.select().from(users).where(eq(users.id, userId)).get();
+  let isNewUserFlag = false;
   
   if (!user) {
+    isNewUserFlag = true;
     // Check for referral with robust prefix clearing and trimming
     const rawRef = req.body.start_param || req.startParamFallback || '';
-    let referredBy = null;
+    let referredBy: string | null = null;
     if (rawRef) {
       referredBy = rawRef.toString()
         .replace(/^ref_tg_/, '')
@@ -131,77 +138,81 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
         .trim();
     }
 
-    console.log(`[REFERRAL DEBUG] New User Registration. ID: ${userId}, Raw start_param: "${rawRef}", Resolved referredBy: "${referredBy}"`);
-
     const WELCOME_BONUS = 7000; // 0.7 USDT
     const REFERRER_CASH_REWARD = 1000; // 0.1 USDT instant reward
     const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
 
     // Atomic Database Transaction for Registration + Referral
-    user = await db.transaction(async (tx) => {
-      let balanceInit = 0;
-      let totalEarnedInit = 0;
-      let claimedMilestonesInit = '[]';
-      
-      if (referredBy && referredBy !== userId) {
-        let referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
-        if (!referrer) {
-          referrer = await tx.insert(users).values({
-            id: referredBy,
-            username: `User_${referredBy}`,
-            firstName: `Miner`,
-            photoUrl: '',
-            balance: 0,
-            totalEarned: 0,
-            miningRate: BASE_MINING_RATE,
-            referralCode: referredBy,
-            referredBy: null,
-            claimedMilestones: '[]',
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          }).returning().get();
-          console.log(`[REFERRAL AUTO-CREATE] Created missing referrer profile for ID: ${referredBy}`);
+    try {
+      user = await db.transaction(async (tx) => {
+        // Double-check user doesn't exist to prevent concurrent registration race condition
+        const checkUserExist = await tx.select().from(users).where(eq(users.id, userId)).get();
+        if (checkUserExist) {
+          throw new Error(`[RACE CONDITION DETECTED] User ${userId} already exists.`);
         }
 
-        // Grant Referrer Mining Rate Boost and instant cash reward of 0.1 USDT
-        await tx.update(users).set({
-          miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
-          balance: referrer.balance + REFERRER_CASH_REWARD,
-          totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
-        }).where(eq(users.id, referredBy));
+        let balanceInit = 0;
+        let totalEarnedInit = 0;
+        let claimedMilestonesInit = '[]';
+        let finalReferredBy: string | null = null;
         
-        await tx.insert(referrals).values({
-          referrerId: referredBy,
-          referredUserId: userId,
-          rewardStatus: 'paid',
-          createdAt: Date.now()
-        });
-        
-        // Credit welcome bonus to new user balance instantly!
-        balanceInit = WELCOME_BONUS;
-        totalEarnedInit = WELCOME_BONUS;
-        claimedMilestonesInit = JSON.stringify(['welcome_claimed']);
-        
-        console.log(`[REFERRAL SUCCESS] Recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
-      } else {
-        referredBy = null;
-      }
+        if (referredBy && referredBy !== userId) {
+          // Check that referredBy matches a strict Telegram user ID format: numeric, length 5 to 15 digits
+          if (!/^[0-9]{5,15}$/.test(referredBy)) {
+            console.log(`[invalid_referrer] Ignored invalid referrer format: "${referredBy}"`);
+          } else {
+            const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
+            if (referrer) {
+              // Grant Referrer Mining Rate Boost and instant cash reward of 0.1 USDT
+              await tx.update(users).set({
+                miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
+                balance: referrer.balance + REFERRER_CASH_REWARD,
+                totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
+              }).where(eq(users.id, referredBy));
+              
+              await tx.insert(referrals).values({
+                referrerId: referredBy,
+                referredUserId: userId,
+                rewardStatus: 'paid',
+                createdAt: Date.now()
+              });
+              
+              // Credit welcome bonus to new user balance instantly!
+              balanceInit = WELCOME_BONUS;
+              totalEarnedInit = WELCOME_BONUS;
+              claimedMilestonesInit = JSON.stringify(['welcome_claimed']);
+              finalReferredBy = referredBy;
+              
+              console.log(`[REFERRAL SUCCESS] Recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
+            } else {
+              console.log(`[invalid_referrer] Referrer ID ${referredBy} not found in database. Ignoring referral.`);
+            }
+          }
+        } else if (!rawRef) {
+          console.log(`[REFERRAL LOGGER INFO] New user registration with empty start_param. User ID: ${userId}`);
+        }
 
-      const newUser = await tx.insert(users).values({
-        id: userId,
-        username: tgUser.username || '',
-        firstName: tgUser.first_name || '',
-        photoUrl: tgUser.photo_url || '',
-        referralCode: userId,
-        referredBy,
-        balance: balanceInit,
-        totalEarned: totalEarnedInit,
-        miningRate: BASE_MINING_RATE,
-        claimedMilestones: claimedMilestonesInit
-      }).returning().get();
-      
-      return newUser;
-    });
+        const newUser = await tx.insert(users).values({
+          id: userId,
+          username: tgUser.username || '',
+          firstName: tgUser.first_name || '',
+          photoUrl: tgUser.photo_url || '',
+          referralCode: userId,
+          referredBy: finalReferredBy,
+          balance: balanceInit,
+          totalEarned: totalEarnedInit,
+          miningRate: BASE_MINING_RATE,
+          claimedMilestones: claimedMilestonesInit
+        }).returning().get();
+        
+        return newUser;
+      });
+    } catch (err: any) {
+      console.warn(`[AUTH TRANSACTION FAILED/ROLLED-BACK] Falsely attempted concurrent registration: ${err.message}`);
+      // Fallback: load already created user
+      user = await db.select().from(users).where(eq(users.id, userId)).get();
+      isNewUserFlag = false;
+    }
   } else {
     // Check if user doesn't have a referrer yet, but start_param is provided now (retro-active linking)
     const rawRef = req.body.start_param || req.startParamFallback || '';
@@ -226,72 +237,66 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       const REFERRER_RATE_BOOST = 200; // +0.02 Mining Rate
       const REFERRER_CASH_REWARD = 1000; // 0.1 USDT instant reward
       const WELCOME_BONUS = 7000; // 0.7 USDT welcome bonus
-      const MAX_MINING_RATE = 100000; // 0.15 USDT per day
 
-      // Perform in transaction to keep atomic
-      await db.transaction(async (tx) => {
-        let referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
-        if (!referrer) {
-          referrer = await tx.insert(users).values({
-            id: referredBy,
-            username: `User_${referredBy}`,
-            firstName: `Miner`,
-            photoUrl: '',
-            balance: 0,
-            totalEarned: 0,
-            miningRate: BASE_MINING_RATE,
-            referralCode: referredBy,
-            referredBy: null,
-            claimedMilestones: '[]',
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          }).returning().get();
-          console.log(`[REFERRAL RETRO-CREATE] Created missing referrer profile for ID: ${referredBy}`);
-        }
+      // Check that referredBy matches a strict Telegram user ID format: numeric, length 5 to 15 digits
+      if (!/^[0-9]{5,15}$/.test(referredBy)) {
+        console.log(`[invalid_referrer] Ignored retro invalid referrer format: "${referredBy}"`);
+      } else {
+        // Perform in transaction to keep atomic
+        try {
+          await db.transaction(async (tx) => {
+            const referrer = await tx.select().from(users).where(eq(users.id, referredBy)).get();
+            if (referrer) {
+              // Check if referral record already exists to prevent duplicate entries
+              const existingReferral = await tx.select().from(referrals)
+                .where(
+                  and(
+                    eq(referrals.referrerId, referredBy),
+                    eq(referrals.referredUserId, userId)
+                  )
+                )
+                .get();
 
-        // Check if referral record already exists to prevent duplicate entries
-        const existingReferral = await tx.select().from(referrals)
-          .where(
-            and(
-              eq(referrals.referrerId, referredBy),
-              eq(referrals.referredUserId, userId)
-            )
-          )
-          .get();
+              if (!existingReferral) {
+                // Update referrer rate boost and credit 0.1 USDT cash
+                await tx.update(users).set({
+                  miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
+                  balance: referrer.balance + REFERRER_CASH_REWARD,
+                  totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
+                }).where(eq(users.id, referredBy));
 
-        if (!existingReferral) {
-          // Update referrer rate boost and credit 0.1 USDT cash
-          await tx.update(users).set({
-            miningRate: Math.min(referrer.miningRate + REFERRER_RATE_BOOST, MAX_MINING_RATE),
-            balance: referrer.balance + REFERRER_CASH_REWARD,
-            totalEarned: referrer.totalEarned + REFERRER_CASH_REWARD
-          }).where(eq(users.id, referredBy));
-
-          // Record the referral
-          await tx.insert(referrals).values({
-            referrerId: referredBy,
-            referredUserId: userId,
-            rewardStatus: 'paid',
-            createdAt: Date.now()
+                // Record the referral
+                await tx.insert(referrals).values({
+                  referrerId: referredBy,
+                  referredUserId: userId,
+                  rewardStatus: 'paid',
+                  createdAt: Date.now()
+                });
+                
+                // Credit welcome bonus to current user instantly inside transaction!
+                let claimedArr: string[] = [];
+                try {
+                  claimedArr = JSON.parse(user.claimedMilestones || '[]');
+                } catch (e) {}
+                if (!claimedArr.includes('welcome_claimed')) {
+                  claimedArr.push('welcome_claimed');
+                }
+                
+                updatedFields.balance = user.balance + WELCOME_BONUS;
+                updatedFields.totalEarned = user.totalEarned + WELCOME_BONUS;
+                updatedFields.claimedMilestones = JSON.stringify(claimedArr);
+                updatedFields.referredBy = referredBy;
+                
+                console.log(`[REFERRAL SUCCESS] Retroactively recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
+              }
+            } else {
+              console.log(`[invalid_referrer] Retro-referrer ${referredBy} not found in database. Ignoring.`);
+            }
           });
-          
-          // Credit welcome bonus to current user instantly inside transaction!
-          let claimedArr: string[] = [];
-          try {
-            claimedArr = JSON.parse(user.claimedMilestones || '[]');
-          } catch (e) {}
-          if (!claimedArr.includes('welcome_claimed')) {
-            claimedArr.push('welcome_claimed');
-          }
-          
-          updatedFields.balance = user.balance + WELCOME_BONUS;
-          updatedFields.totalEarned = user.totalEarned + WELCOME_BONUS;
-          updatedFields.claimedMilestones = JSON.stringify(claimedArr);
-          updatedFields.referredBy = referredBy;
-          
-          console.log(`[REFERRAL SUCCESS] Retroactively recorded referral for referrer: ${referredBy} (+0.1 USDT & +200 Rate) -> referred user: ${userId} (+0.7 USDT welcomed)`);
+        } catch (err: any) {
+          console.error('[RETRO-REFERRAL TRANSACTION ERROR]', err);
         }
-      });
+      }
     }
 
     // Update profile pic/name & referral if changed
@@ -319,7 +324,8 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   res.json({ 
     user: formattedUser, 
     referralsCount: userReferrals.length, 
-    referralBonusEarned 
+    referralBonusEarned,
+    isNewUser: isNewUserFlag
   });
 });
 
