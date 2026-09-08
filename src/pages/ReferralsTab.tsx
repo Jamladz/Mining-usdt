@@ -28,8 +28,8 @@ export function ReferralsTab() {
   const [claimingMilestone, setClaimingMilestone] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'invite' | 'friends' | 'leaderboard'>('invite');
   
-  // Custom prefix 'ref_' as requested
-  const referralLink = `https://t.me/Miningusdt2027_bot/app?startapp=ref_${user?.id || 'demo123'}`;
+  // Custom prefix 'ref_tg_' as requested
+  const referralLink = `https://t.me/Miningusdt2027_bot?startapp=ref_tg_${user?.id || 'demo123'}`;
 
   const MILESTONES = [
     { id: 'm1', target: 3, rewardUsdt: 0.3, rewardRate: 0.05 },
@@ -438,16 +438,76 @@ export function ReferralsTab() {
                 </p>
               </div>
 
-              {/* Coming Soon Placeholder */}
-              <div className="bg-white rounded-[24px] p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
-                  <Clock className="w-8 h-8 text-amber-500" />
+              {/* Real Leaderboard Data */}
+              {loadingLeaderboard ? (
+                <div className="bg-white rounded-[24px] p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
+                  <Loader2 className="w-8 h-8 text-amber-500 animate-spin mb-2" />
+                  <p className="text-xs font-black text-slate-500">Loading Leaderboard...</p>
                 </div>
-                <h3 className="text-sm font-black text-slate-900 mb-2 tracking-tight">Coming Soon</h3>
-                <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[200px] mx-auto">
-                  The leaderboard is currently being prepared. Keep inviting friends to secure your top spot!
-                </p>
-              </div>
+              ) : leaderboard.length === 0 ? (
+                <div className="bg-white rounded-[24px] p-12 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
+                    <Trophy className="w-8 h-8 text-amber-500" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 mb-2 tracking-tight">No Referrals Yet</h3>
+                  <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[200px] mx-auto">
+                    Be the first to invite friends and top the weekly leaderboard!
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-white rounded-[24px] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 space-y-2">
+                  {leaderboard.map((row, index) => {
+                    const rank = index + 1;
+                    const isTop3 = rank <= 3;
+                    const rankColors = [
+                      'bg-yellow-500 text-white shadow-[0_2px_8px_rgba(234,179,8,0.3)]',
+                      'bg-slate-400 text-white shadow-[0_2px_8px_rgba(148,163,184,0.3)]',
+                      'bg-amber-600 text-white shadow-[0_2px_8px_rgba(180,83,9,0.3)]'
+                    ];
+
+                    return (
+                      <div 
+                        key={row.id} 
+                        className={cn(
+                          "flex items-center justify-between p-3 rounded-xl transition-all border",
+                          row.isCurrentUser 
+                            ? "bg-amber-50/50 border-amber-200/60 shadow-sm" 
+                            : "bg-slate-50 border-slate-100"
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0",
+                            isTop3 ? rankColors[rank - 1] : "bg-slate-200 text-slate-600"
+                          )}>
+                            {rank}
+                          </div>
+                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-black text-xs text-slate-700 overflow-hidden shrink-0">
+                            {row.photoUrl ? (
+                              <img src={row.photoUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            ) : (
+                              (row.username || 'A').charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-900 flex items-center gap-1">
+                              <span>{row.firstName || row.username || 'Anonymous'}</span>
+                              {row.isCurrentUser && (
+                                <span className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-md">YOU</span>
+                              )}
+                            </p>
+                            <p className="text-[9px] font-medium text-slate-400">@{row.username || 'anonymous'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs font-black text-slate-900 bg-white border border-slate-200/60 px-2.5 py-1 rounded-lg shadow-sm">
+                          <Users className="w-3.5 h-3.5 text-emerald-500" />
+                          <span>{row.referralsCount} refs</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
