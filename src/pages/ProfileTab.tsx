@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { FAQSheet } from '../components/FAQSheet';
+import { referralService } from '../services/referralService';
 
 
 const MIN_WITHDRAWAL = 3;
@@ -18,10 +19,24 @@ export function ProfileTab() {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
+  const [liveReferralsCount, setLiveReferralsCount] = useState<number>(user?.referralsCount || 0);
 
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      referralService.getUserReferrals(user.id).then(list => {
+        setLiveReferralsCount(Math.max(user?.referralsCount || 0, list.length));
+      }).catch(err => {
+        console.warn('Failed to load live referrals in ProfileTab', err);
+      });
+    }
+  }, [user]);
+
+  const totalReferrals = Math.max(user?.referralsCount || 0, liveReferralsCount);
+  const hasThreeReferrals = totalReferrals >= 3;
 
   const fetchHistory = async () => {
     try {
@@ -39,7 +54,6 @@ export function ProfileTab() {
     e.preventDefault();
     
     // Check 3 referrals constraint
-    const hasThreeReferrals = (user?.referralsCount || 0) >= 3;
     if (!hasThreeReferrals) {
       showToast(<span>🔒 Withdrawal Locked! You must refer at least 3 active friends to withdraw.</span>, 'error');
       return;
@@ -192,8 +206,27 @@ export function ProfileTab() {
             </div>
           </div>
 
-          {/* Elegant Referral Lock Notice when referrals count is < 3 */}
-          {(user?.referralsCount || 0) < 3 && (
+          {/* Elegant Referral Lock/Unlock Notice */}
+          {hasThreeReferrals ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-4 bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 flex flex-col space-y-1.5 relative overflow-hidden z-10 shadow-[0_2px_12px_rgba(16,185,129,0.04)]"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 animate-bounce">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+                <h4 className="text-[11px] font-black text-emerald-950 uppercase tracking-wider">Withdrawal Unlocked</h4>
+                <span className="ml-auto text-[9px] font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                  Premium Active <Check className="w-2.5 h-2.5" />
+                </span>
+              </div>
+              <p className="text-[10px] text-emerald-800 leading-relaxed font-bold">
+                🎉 Congratulations! You have referred <span className="text-emerald-950 font-black">{totalReferrals} active friends</span>. Standard and premium withdrawals are now fully unlocked for your account.
+              </p>
+            </motion.div>
+          ) : (
             <div className="mb-4 bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex flex-col space-y-2 relative overflow-hidden z-10">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
@@ -205,9 +238,9 @@ export function ProfileTab() {
                 To prevent fraud and maintain system stability, you must refer at least <span className="font-black text-amber-950 text-xs">3 active friends</span> to unlock withdrawals.
               </p>
               <div className="flex items-center justify-between pt-2 mt-1 border-t border-amber-200/30 text-[10px] font-black text-amber-800">
-                <span>Progress: <span className="text-amber-950">{user?.referralsCount || 0} / 3</span></span>
+                <span>Progress: <span className="text-amber-950">{totalReferrals} / 3</span></span>
                 <span className="bg-amber-600 text-white px-2 py-0.5 rounded-full text-[8px] uppercase tracking-wider font-extrabold shrink-0">
-                  {3 - (user?.referralsCount || 0)} More Needed
+                  {3 - totalReferrals} More Needed
                 </span>
               </div>
             </div>
@@ -221,7 +254,7 @@ export function ProfileTab() {
                   type="number"
                   step="0.0001"
                   min="3"
-                  disabled={(user?.referralsCount || 0) < 3}
+                  disabled={!hasThreeReferrals}
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.0000"
@@ -230,7 +263,7 @@ export function ProfileTab() {
                 <motion.button 
                   whileTap={{ scale: 0.95 }}
                   type="button" 
-                  disabled={(user?.referralsCount || 0) < 3}
+                  disabled={!hasThreeReferrals}
                   onClick={() => setWithdrawAmount(formatUSDT(user?.balance || 0))}
                   className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg hover:bg-emerald-200 transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -243,7 +276,7 @@ export function ProfileTab() {
               <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1">Wallet Address (TRC20/BEP20)</label>
               <input 
                 type="text"
-                disabled={(user?.referralsCount || 0) < 3}
+                disabled={!hasThreeReferrals}
                 value={walletAddress}
                 onChange={(e) => setWalletAddress(e.target.value)}
                 placeholder="T..."
@@ -254,14 +287,14 @@ export function ProfileTab() {
             <motion.button 
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={isWithdrawing || (user?.referralsCount || 0) < 3}
+              disabled={isWithdrawing || !hasThreeReferrals}
               className="w-full mt-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
             >
-              {(user?.referralsCount || 0) < 3 ? <Lock className="w-3.5 h-3.5 text-slate-400 animate-pulse" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
+              {!hasThreeReferrals ? <Lock className="w-3.5 h-3.5 text-slate-400 animate-pulse" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
               <span>
                 {isWithdrawing 
                   ? 'PROCESSING...' 
-                  : (user?.referralsCount || 0) < 3 
+                  : !hasThreeReferrals 
                     ? '3 REFERRALS REQUIRED' 
                     : 'REQUEST WITHDRAWAL'
                 }

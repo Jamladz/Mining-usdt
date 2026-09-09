@@ -183,7 +183,20 @@ export const referralService = {
         return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'You have already claimed this milestone reward!' };
       }
 
-      const referralsCount = userData.referralsCount || 0;
+      // Query live referrals collection to get the most accurate, real-time count
+      let realCount = 0;
+      try {
+        const q = query(
+          collection(db, 'referrals'),
+          where('referrerId', '==', userId)
+        );
+        const querySnapshot = await getDocs(q);
+        realCount = querySnapshot.size;
+      } catch (e) {
+        console.warn('Failed to fetch live referrals count, falling back to profile field', e);
+      }
+
+      const referralsCount = Math.max(userData.referralsCount || 0, realCount);
       if (referralsCount < target) {
         return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'You have not reached this target yet!' };
       }
