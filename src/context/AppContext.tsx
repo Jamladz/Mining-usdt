@@ -313,15 +313,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      const res = await fetch('/api/auth', {
+      // In production with Cloudflare, this should point to your Worker URL
+      // E.g., 'https://usdt-miner-backend.<your-username>.workers.dev/api/auth'
+      // We use a relative path for the dev environment and an env variable for production
+      const apiUrl = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : '/api/auth';
+      
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': initData
-        },
-        body: JSON.stringify({
-          start_param: startParam
-        })
+        }
       });
       const data = await res.json();
       if (data.user) {

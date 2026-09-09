@@ -390,14 +390,14 @@ export function TasksTab() {
     let rewardRateBoost = 100;
 
     if (task.id === 'adsgram_reward') {
-      blockId = '46657'; // Adsgram Reward Block ID (Pure number as string)
+      blockId = '46899'; // Adsgram Reward Block ID (Pure number as string)
       const completedSubtasks = [1, 2].filter(num => getTaskStatus(`adsgram_reward_${num}`).isCompleted);
       const nextNum = completedSubtasks.length + 1;
       if (nextNum > 2) return;
       finalTaskId = `adsgram_reward_${nextNum}`;
       rewardRateBoost = 200;
     } else if (task.id === 'adsgram_interstitial') {
-      blockId = 'int-46658'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
+      blockId = 'int-46901'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
       const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
       const nextNum = completedSubtasks.length + 1;
       if (nextNum > 5) return;
@@ -515,7 +515,7 @@ export function TasksTab() {
         >
           {React.createElement('adsgram-task', {
             id: 'adsgram-task-component',
-            'data-block-id': 'task-46660',
+            'data-block-id': 'task-46903',
             style: {
               display: 'block',
               width: '100%',
@@ -638,18 +638,18 @@ export function TasksTab() {
 
           <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
             <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
-            </div>
-            {monetagTasks.map((t, i) => renderTask(t, i))}
-          </motion.section>
-
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
               <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
               <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>
             </div>
             {adsgramTasks.map((t, i) => renderTask(t, i))}
+          </motion.section>
+
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
+            </div>
+            {monetagTasks.map((t, i) => renderTask(t, i))}
           </motion.section>
         </div>
       </div>

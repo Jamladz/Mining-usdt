@@ -1,0 +1,13 @@
+name = "usdt-miner-backend"
+main = "cloudflare-worker.ts"
+compatibility_date = "2024-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Do not put actual secrets here! 
+# Use `wrangler secret put <NAME>` to set these in your Cloudflare dashboard
+#
+# Required Secrets:
+# - TELEGRAM_BOT_TOKEN
+# - FIREBASE_PROJECT_ID
+# - FIREBASE_CLIENT_EMAIL
+# - FIREBASE_PRIVATE_KEY

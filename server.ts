@@ -26,10 +26,11 @@ function validateInitData(initData: string): any {
     try {
       const urlParams = new URLSearchParams(initData);
       const userStr = urlParams.get('user');
-      if (userStr) return JSON.parse(userStr);
-      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
+      const startParam = urlParams.get('start_param') || '';
+      if (userStr) return { user: JSON.parse(userStr), startParam };
+      return { user: { id: 12345, username: 'dev_user', first_name: 'Dev' }, startParam };
     } catch {
-      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
+      return { user: { id: 12345, username: 'dev_user', first_name: 'Dev' }, startParam: '' };
     }
   }
 
@@ -40,6 +41,19 @@ function validateInitData(initData: string): any {
 
   const urlParams = new URLSearchParams(initData);
   const hash = urlParams.get('hash');
+  
+  // Replay Attack Protection
+  const authDateStr = urlParams.get('auth_date');
+  if (!authDateStr) {
+    throw new Error('Missing auth_date');
+  }
+  const authDate = parseInt(authDateStr, 10);
+  const now = Math.floor(Date.now() / 1000);
+  // Max valid time: 24 hours
+  if (now - authDate > 86400) {
+    throw new Error('Session expired');
+  }
+
   urlParams.delete('hash');
 
   const keys = Array.from(urlParams.keys()).sort();
@@ -54,27 +68,23 @@ function validateInitData(initData: string): any {
 
   const userStr = urlParams.get('user');
   if (!userStr) throw new Error('No user data');
-  return JSON.parse(userStr);
+  
+  const startParam = urlParams.get('start_param') || '';
+  
+  return { user: JSON.parse(userStr), startParam };
 }
 
 // Middleware to extract and validate user
 const requireUser = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const initData = req.headers['authorization'] || '';
   try {
-    const tgUser = validateInitData(initData);
+    const validatedData = validateInitData(initData);
+    const tgUser = validatedData.user;
+    
     if (!tgUser || !tgUser.id) return res.status(401).json({ error: 'Unauthorized' });
     (req as any).user = tgUser;
+    (req as any).startParamSecure = validatedData.startParam;
     
-    // Extract start_param directly from raw initData query-string as fallback
-    let startParamFallback = '';
-    try {
-      const urlParams = new URLSearchParams(initData);
-      startParamFallback = urlParams.get('start_param') || '';
-    } catch (e) {
-      console.warn('Failed parsing start_param from authorization header:', e);
-    }
-    
-    (req as any).startParamFallback = startParamFallback;
     next();
   } catch (err) {
     console.error('[AUTH ERROR]', err);
@@ -117,10 +127,10 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   let user = await db.select().from(users).where(eq(users.id, userId)).get();
   let isNewUserFlag = false;
 
-  // Extract and sanitize referrer ID
-  const rawRef = req.body.start_param || req.startParamFallback || '';
+  // Extract and sanitize referrer ID ONLY from the cryptographically verified initData
+  const rawRef = req.startParamSecure || '';
   let referrerId: string | null = null;
-  if (rawRef) {
+  if (rawRef && rawRef.startsWith('ref_')) {
     referrerId = rawRef.toString()
       .replace(/^ref_tg_/, '')
       .replace(/^ref_/, '')
