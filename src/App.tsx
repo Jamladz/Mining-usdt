@@ -10,6 +10,7 @@ import { HomeTab } from './pages/HomeTab';
 import { TasksTab } from './pages/TasksTab';
 import { ReferralHub } from './components/ReferralHub';
 import { ProfileTab } from './pages/ProfileTab';
+import { AdminTab } from './pages/AdminTab';
 import { WelcomeBonusSheet } from './components/WelcomeBonusSheet';
 import { AnimatePresence, motion } from 'motion/react';
 import { referralService } from './services/referralService';
@@ -86,6 +87,11 @@ function AppContent() {
           {currentTab === 'profile' && (
             <motion.div key="profile" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <ProfileTab />
+            </motion.div>
+          )}
+          {currentTab === 'admin' && user?.username?.toLowerCase() === 'sekanedr_is' && (
+            <motion.div key="admin" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <AdminTab />
             </motion.div>
           )}
         </AnimatePresence>

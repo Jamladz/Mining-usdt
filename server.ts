@@ -343,11 +343,11 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
     boostAmount = 300; // +0.03 USDT
   } else if (taskId.startsWith('adsgram_interstitial')) {
     boostAmount = 100; // +0.01 USDT
-  } else if (taskId === 'monetag_rewarded_interstitial') {
+  } else if (taskId.startsWith('monetag_rewarded_interstitial')) {
     boostAmount = 300; // +0.03 USDT
-  } else if (taskId === 'monetag_rewarded_popup') {
+  } else if (taskId.startsWith('monetag_rewarded_popup')) {
     boostAmount = 200; // +0.02 USDT
-  } else if (taskId === 'monetag_inapp_interstitial') {
+  } else if (taskId.startsWith('monetag_inapp_interstitial')) {
     boostAmount = 100; // +0.01 USDT
   }
   
@@ -433,6 +433,22 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   }));
 
   res.json({ referrals: friendDetails });
+});
+
+// Admin endpoint for sekanedr_is
+app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
+  const adminUsername = (req.user?.username || '').toLowerCase();
+  if (adminUsername !== 'sekanedr_is') {
+    return res.status(403).json({ error: 'Forbidden: Unauthorized access.' });
+  }
+
+  try {
+    const allUsers = await db.select().from(users).orderBy(desc(users.createdAt)).all();
+    res.json({ users: allUsers });
+  } catch (err) {
+    console.error('[ADMIN FETCH ERROR]', err);
+    res.status(500).json({ error: 'Failed to fetch user profiles.' });
+  }
 });
 
 // Vite middleware for development

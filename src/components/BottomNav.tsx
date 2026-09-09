@@ -1,7 +1,8 @@
 import React from 'react';
-import { Home, CheckSquare, Users, User } from 'lucide-react';
+import { Home, CheckSquare, Users, User, ShieldCheck } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { motion } from 'motion/react';
+import { useApp } from '../context/AppContext';
 
 interface BottomNavProps {
   currentTab: string;
@@ -9,12 +10,18 @@ interface BottomNavProps {
 }
 
 export function BottomNav({ currentTab, setCurrentTab }: BottomNavProps) {
+  const { user } = useApp();
+
   const navItems = [
     { id: 'home', icon: Home, label: 'Home' },
     { id: 'tasks', icon: CheckSquare, label: 'Tasks' },
     { id: 'referrals', icon: Users, label: 'Referrals' },
     { id: 'profile', icon: User, label: 'Profile' }
   ];
+
+  if (user?.username?.toLowerCase() === 'sekanedr_is') {
+    navItems.push({ id: 'admin', icon: ShieldCheck, label: 'Admin' });
+  }
 
   return (
     <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-slate-200 px-4 h-[60px] flex justify-around items-center z-50 pb-[var(--tg-safe-area-inset-bottom,0px)] box-content">

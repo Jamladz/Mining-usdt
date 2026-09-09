@@ -64,7 +64,31 @@ export function TasksTab() {
       
       const data = await res.json();
       if (data.success) {
-        const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
+        // Auto-complete parent task if final subtask completed
+        let parentToComplete = '';
+        if (finalTaskId === 'adsgram_reward_2') parentToComplete = 'adsgram_reward';
+        else if (finalTaskId === 'adsgram_interstitial_5') parentToComplete = 'adsgram_interstitial';
+        else if (finalTaskId === 'monetag_rewarded_interstitial_5') parentToComplete = 'monetag_rewarded_interstitial';
+        else if (finalTaskId === 'monetag_rewarded_popup_5') parentToComplete = 'monetag_rewarded_popup';
+
+        let updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
+
+        if (parentToComplete) {
+          try {
+            await fetch('/api/tasks/complete', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': initData || ''
+              },
+              body: JSON.stringify({ taskId: parentToComplete, provider })
+            });
+            updatedList = [...updatedList.filter(c => c.taskId !== parentToComplete), { taskId: parentToComplete, completedAt: Date.now() }];
+          } catch (err) {
+            console.warn('Failed to auto-complete parent task:', err);
+          }
+        }
+
         setCompletedTasksList(updatedList);
         
         if (user) {
@@ -81,7 +105,18 @@ export function TasksTab() {
       }
     } catch (e) {
       console.warn('Backend not available, using local simulation for task completion');
-      const updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
+      
+      let parentToComplete = '';
+      if (finalTaskId === 'adsgram_reward_2') parentToComplete = 'adsgram_reward';
+      else if (finalTaskId === 'adsgram_interstitial_5') parentToComplete = 'adsgram_interstitial';
+      else if (finalTaskId === 'monetag_rewarded_interstitial_5') parentToComplete = 'monetag_rewarded_interstitial';
+      else if (finalTaskId === 'monetag_rewarded_popup_5') parentToComplete = 'monetag_rewarded_popup';
+
+      let updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
+      if (parentToComplete) {
+        updatedList = [...updatedList.filter(c => c.taskId !== parentToComplete), { taskId: parentToComplete, completedAt: Date.now() }];
+      }
+
       setCompletedTasksList(updatedList);
       
       if (user) {
@@ -177,6 +212,39 @@ export function TasksTab() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
+  const getMultiTaskInfo = (parentTaskId: string, maxCount: number) => {
+    // 1. Check if the parent task itself is currently in a 24-hour cooldown
+    const parentStatus = getTaskStatus(parentTaskId);
+    
+    if (parentStatus.isCompleted) {
+      return {
+        isCompleted: true,
+        timeLeft: parentStatus.timeLeft,
+        subLabel: `${maxCount}/${maxCount} Watched today`
+      };
+    }
+    
+    // 2. Find the last time the parent task was completed
+    const parentRecord = completedTasksList.find(t => t.taskId === parentTaskId);
+    const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
+    
+    // 3. Count how many subtasks have been completed *after* the last parent task completion
+    let completedInSession = 0;
+    for (let i = 1; i <= maxCount; i++) {
+      const subtaskId = `${parentTaskId}_${i}`;
+      const subRecord = completedTasksList.find(t => t.taskId === subtaskId);
+      if (subRecord && subRecord.completedAt > lastParentTime) {
+        completedInSession++;
+      }
+    }
+    
+    return {
+      isCompleted: false,
+      timeLeft: 0,
+      subLabel: `${completedInSession}/${maxCount} Watched today`
+    };
+  };
+
   const getTaskStatusInfo = (taskId: string) => {
     if (taskId === 'sys_add_home') {
       const status = getTaskStatus('sys_add_home');
@@ -188,83 +256,19 @@ export function TasksTab() {
     }
     
     if (taskId === 'adsgram_reward') {
-      const completedSubtasks = [1, 2].filter(num => getTaskStatus(`adsgram_reward_${num}`).isCompleted);
-      const completedCount = completedSubtasks.length;
-      
-      if (completedCount === 2) {
-        const lastStatus = getTaskStatus('adsgram_reward_2');
-        return {
-          isCompleted: true,
-          timeLeft: lastStatus.timeLeft,
-          subLabel: '2/2 Watched today'
-        };
-      } else {
-        return {
-          isCompleted: false,
-          timeLeft: 0,
-          subLabel: `${completedCount}/2 Watched today`
-        };
-      }
+      return getMultiTaskInfo('adsgram_reward', 2);
     }
 
     if (taskId === 'adsgram_interstitial') {
-      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
-      const completedCount = completedSubtasks.length;
-      
-      if (completedCount === 5) {
-        const lastStatus = getTaskStatus('adsgram_interstitial_5');
-        return {
-          isCompleted: true,
-          timeLeft: lastStatus.timeLeft,
-          subLabel: '5/5 Watched today'
-        };
-      } else {
-        return {
-          isCompleted: false,
-          timeLeft: 0,
-          subLabel: `${completedCount}/5 Watched today`
-        };
-      }
+      return getMultiTaskInfo('adsgram_interstitial', 5);
     }
 
     if (taskId === 'monetag_rewarded_interstitial') {
-      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_interstitial_${num}`).isCompleted);
-      const completedCount = completedSubtasks.length;
-      
-      if (completedCount === 5) {
-        const lastStatus = getTaskStatus('monetag_rewarded_interstitial_5');
-        return {
-          isCompleted: true,
-          timeLeft: lastStatus.timeLeft,
-          subLabel: '5/5 Watched today'
-        };
-      } else {
-        return {
-          isCompleted: false,
-          timeLeft: 0,
-          subLabel: `${completedCount}/5 Watched today`
-        };
-      }
+      return getMultiTaskInfo('monetag_rewarded_interstitial', 5);
     }
 
     if (taskId === 'monetag_rewarded_popup') {
-      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_popup_${num}`).isCompleted);
-      const completedCount = completedSubtasks.length;
-      
-      if (completedCount === 5) {
-        const lastStatus = getTaskStatus('monetag_rewarded_popup_5');
-        return {
-          isCompleted: true,
-          timeLeft: lastStatus.timeLeft,
-          subLabel: '5/5 Watched today'
-        };
-      } else {
-        return {
-          isCompleted: false,
-          timeLeft: 0,
-          subLabel: `${completedCount}/5 Watched today`
-        };
-      }
+      return getMultiTaskInfo('monetag_rewarded_popup', 5);
     }
 
     if (taskId === 'monetag_inapp_interstitial') {
@@ -329,7 +333,12 @@ export function TasksTab() {
       setLoadingTask(task.id);
 
       if (task.id === 'monetag_rewarded_interstitial') {
-        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_interstitial_${num}`).isCompleted);
+        const parentRecord = completedTasksList.find(t => t.taskId === 'monetag_rewarded_interstitial');
+        const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
+        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => {
+          const r = completedTasksList.find(t => t.taskId === `monetag_rewarded_interstitial_${num}`);
+          return r && r.completedAt > lastParentTime;
+        });
         const nextNum = completedSubtasks.length + 1;
         if (nextNum > 5) {
           setLoadingTask(null);
@@ -346,7 +355,12 @@ export function TasksTab() {
           setLoadingTask(null);
         }
       } else if (task.id === 'monetag_rewarded_popup') {
-        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`monetag_rewarded_popup_${num}`).isCompleted);
+        const parentRecord = completedTasksList.find(t => t.taskId === 'monetag_rewarded_popup');
+        const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
+        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => {
+          const r = completedTasksList.find(t => t.taskId === `monetag_rewarded_popup_${num}`);
+          return r && r.completedAt > lastParentTime;
+        });
         const nextNum = completedSubtasks.length + 1;
         if (nextNum > 5) {
           setLoadingTask(null);
@@ -391,14 +405,24 @@ export function TasksTab() {
 
     if (task.id === 'adsgram_reward') {
       blockId = '46657'; // Adsgram Reward Block ID (Pure number as string)
-      const completedSubtasks = [1, 2].filter(num => getTaskStatus(`adsgram_reward_${num}`).isCompleted);
+      const parentRecord = completedTasksList.find(t => t.taskId === 'adsgram_reward');
+      const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
+      const completedSubtasks = [1, 2].filter(num => {
+        const r = completedTasksList.find(t => t.taskId === `adsgram_reward_${num}`);
+        return r && r.completedAt > lastParentTime;
+      });
       const nextNum = completedSubtasks.length + 1;
       if (nextNum > 2) return;
       finalTaskId = `adsgram_reward_${nextNum}`;
       rewardRateBoost = 200;
     } else if (task.id === 'adsgram_interstitial') {
       blockId = 'int-46658'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
-      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => getTaskStatus(`adsgram_interstitial_${num}`).isCompleted);
+      const parentRecord = completedTasksList.find(t => t.taskId === 'adsgram_interstitial');
+      const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
+      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => {
+        const r = completedTasksList.find(t => t.taskId === `adsgram_interstitial_${num}`);
+        return r && r.completedAt > lastParentTime;
+      });
       const nextNum = completedSubtasks.length + 1;
       if (nextNum > 5) return;
       finalTaskId = `adsgram_interstitial_${nextNum}`;
