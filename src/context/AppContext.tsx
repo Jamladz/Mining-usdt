@@ -323,6 +323,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           start_param: startParam
         })
       });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Auth request failed:', res.status, errorText);
+        throw new Error(`Server returned ${res.status}: ${errorText.substring(0, 100)}`);
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('Expected JSON but received:', text.substring(0, 100));
+        throw new Error('Server returned non-JSON response');
+      }
+
       const data = await res.json();
       if (data.user) {
         const newUser: User = { 

@@ -51,12 +51,20 @@ export function AdminTab() {
           'Authorization': initData || ''
         }
       });
+      
       if (!res.ok) {
         if (res.status === 403) {
           throw new Error('Access denied. This page is only for authorized administrators.');
         }
-        throw new Error('Failed to retrieve user accounts from server.');
+        const errorText = await res.text();
+        throw new Error(`Server error (${res.status}): ${errorText.substring(0, 50)}`);
       }
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned an unexpected response format (not JSON).');
+      }
+
       const data = await res.json();
       if (data.users) {
         setUsersList(data.users);
