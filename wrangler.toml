@@ -1,7 +1,14 @@
 name = "usdt-miner-backend"
 main = "cloudflare-worker.ts"
 compatibility_date = "2024-03-01"
+
+# Required for firebase-admin and node:crypto
 compatibility_flags = ["nodejs_compat"]
+
+[build]
+# Prevent wrangler from complaining about unresolved Node built-ins 
+# when it bundles the code
+command = ""
 
 # Do not put actual secrets here! 
 # Use `wrangler secret put <NAME>` to set these in your Cloudflare dashboard

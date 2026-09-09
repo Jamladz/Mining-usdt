@@ -1,6 +1,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import * as crypto from 'crypto';
+import * as crypto from 'node:crypto';
 
 export interface Env {
   TELEGRAM_BOT_TOKEN: string;
