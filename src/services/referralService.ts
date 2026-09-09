@@ -10,10 +10,16 @@ export interface Milestone {
 }
 
 export const REFERRAL_MILESTONES: Milestone[] = [
-  { target: 3, rewardUSDTUnits: 5000, rewardMiningUnits: 500, description: 'Refer 3 friends and get +0.50 USDT & +0.05/24h Boost' },
-  { target: 5, rewardUSDTUnits: 10000, rewardMiningUnits: 1000, description: 'Refer 5 friends and get +1.00 USDT & +0.10/24h Boost' },
-  { target: 10, rewardUSDTUnits: 25000, rewardMiningUnits: 2500, description: 'Refer 10 friends and get +2.50 USDT & +0.25/24h Boost' },
-  { target: 25, rewardUSDTUnits: 100000, rewardMiningUnits: 10000, description: 'Refer 25 friends and get +10.00 USDT & +1.00/24h Boost' }
+  { target: 3, rewardUSDTUnits: 3000, rewardMiningUnits: 100, description: 'Refer 3 friends and claim +0.30 USDT reward!' },
+  { target: 6, rewardUSDTUnits: 6000, rewardMiningUnits: 200, description: 'Refer 6 friends and claim +0.60 USDT reward!' },
+  { target: 9, rewardUSDTUnits: 9000, rewardMiningUnits: 300, description: 'Refer 9 friends and claim +0.90 USDT reward!' },
+  { target: 12, rewardUSDTUnits: 12000, rewardMiningUnits: 400, description: 'Refer 12 friends and claim +1.20 USDT reward!' },
+  { target: 15, rewardUSDTUnits: 15000, rewardMiningUnits: 500, description: 'Refer 15 friends and claim +1.50 USDT reward!' },
+  { target: 18, rewardUSDTUnits: 18000, rewardMiningUnits: 600, description: 'Refer 18 friends and claim +1.80 USDT reward!' },
+  { target: 21, rewardUSDTUnits: 21000, rewardMiningUnits: 700, description: 'Refer 21 friends and claim +2.10 USDT reward!' },
+  { target: 24, rewardUSDTUnits: 24000, rewardMiningUnits: 800, description: 'Refer 24 friends and claim +2.40 USDT reward!' },
+  { target: 27, rewardUSDTUnits: 27000, rewardMiningUnits: 900, description: 'Refer 27 friends and claim +2.70 USDT reward!' },
+  { target: 30, rewardUSDTUnits: 30000, rewardMiningUnits: 1000, description: 'Refer 30 friends and claim +3.00 USDT reward!' }
 ];
 
 export const referralService = {

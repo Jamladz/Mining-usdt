@@ -77,8 +77,8 @@ export function ReferralHub() {
     }
   };
 
-  const totalInvited = user?.referralsCount || 0;
-  const earningsUSDTUnits = user?.referralEarnings || 0;
+  const totalInvited = Math.max(user?.referralsCount || 0, referrals.length);
+  const earningsUSDTUnits = Math.max(user?.referralEarnings || 0, referrals.length * 1000);
   const claimedMilestones: number[] = (user as any)?.claimedMilestones || [];
 
   return (
