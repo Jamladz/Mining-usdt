@@ -439,7 +439,7 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
 });
 
 // Catch-all for unknown API routes - MUST be after all valid API routes
-app.all('/api/*all', (req, res) => {
+app.all('/api/(.*)', (req, res) => {
   console.log(`[API 404] ${req.method} ${req.url}`);
   res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
@@ -455,7 +455,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get(/^(?!\/api).*/, (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
