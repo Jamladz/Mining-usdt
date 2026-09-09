@@ -102,7 +102,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('usdt_miner_user_data');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && parsed.id && typeof parsed.balance === 'number' && typeof parsed.miningRate === 'number') {
+          return parsed;
+        }
+      }
+      return null;
     } catch {
       return null;
     }
