@@ -326,6 +326,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       });
       const data = await res.json();
+      if (!res.ok || !data.user) {
+        throw new Error(data.error || 'Failed to authenticate user or user data is missing');
+      }
       if (data.user) {
         const newUser: User = { 
           ...data.user, 
