@@ -102,13 +102,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('usdt_miner_user_data');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object' && parsed.id && typeof parsed.balance === 'number' && typeof parsed.miningRate === 'number') {
-          return parsed;
-        }
-      }
-      return null;
+      return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
@@ -319,22 +313,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // In production with Cloudflare, this should point to your Worker URL
-      // E.g., 'https://usdt-miner-backend.<your-username>.workers.dev/api/auth'
-      // We use a relative path for the dev environment and an env variable for production
-      const apiUrl = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/auth` : '/api/auth';
-      
-      const res = await fetch(apiUrl, {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': initData
-        }
+        },
+        body: JSON.stringify({
+          start_param: startParam
+        })
       });
       const data = await res.json();
-      if (!res.ok || !data.user) {
-        throw new Error(data.error || 'Failed to authenticate user or user data is missing');
-      }
       if (data.user) {
         const newUser: User = { 
           ...data.user, 

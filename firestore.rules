@@ -8,21 +8,11 @@ service cloud.firestore {
 
     // Public users collection for Telegram ID search and profile synchronization
     match /users/{userId} {
+      // Read is open to allow searching by any Telegram user
       allow read: if true;
       
-      // Prevent clients from modifying their balance, miningRate, referralsCount, or referredBy
-      allow update, create: if request.resource.data.id == userId
-        && (!request.resource.data.keys().hasAny(['balance', 'miningRate', 'referralsCount', 'referredBy', 'referralEarnings', 'totalEarned']))
-        || (
-            // If they are updating and the sensitive fields haven't changed from existing data
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['username', 'firstName', 'photoUrl', 'lastActive'])
-        );
-    }
-    
-    // Referral records
-    match /referral_records/{recordId} {
-      allow read: if request.auth != null && recordId.matches('.*_' + request.auth.uid + '$');
-      allow write: if false; // Only Cloudflare Worker Admin SDK can write here
+      // Write is allowed to synchronize their own Telegram Profile
+      allow create, update: if request.resource.data.id == userId;
     }
   }
 }

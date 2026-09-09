@@ -18,6 +18,9 @@ export async function syncUserToFirebase(user: any) {
       username: user.username || '',
       firstName: user.firstName || '',
       photoUrl: user.photoUrl || '',
+      referralsCount: user.referralsCount || 0,
+      totalEarned: user.totalEarned || 0,
+      miningRate: user.miningRate || 0,
       lastActive: serverTimestamp()
     }, { merge: true });
     console.log('[FIREBASE] Synced user profile successfully');

@@ -9,28 +9,9 @@
     <meta property="og:description" content="A production-ready Telegram Mini App for mining USDT." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <script>
-      // Prevent sandboxed iframe ad-blocker or cross-origin errors from breaking the main React thread
-      window.onerror = function(message, source, lineno, colno, error) {
-        const src = String(source || '');
-        const msg = String(message || '');
-        if (
-          src.includes('adsgram') || 
-          src.includes('libtl') || 
-          src.includes('monetag') || 
-          msg.includes('cross-origin') || 
-          msg.includes('Script error') ||
-          msg.includes('SecurityError')
-        ) {
-          console.warn('Safely caught and ignored cross-origin/sandbox script error:', msg, 'from:', src);
-          return true; // Suppress default browser error reporting
-        }
-        return false;
-      };
-    </script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script async src="https://sad.adsgram.ai/js/sad.min.js"></script>
-    <script async src="https://libtl.com/sdk.js" data-zone="11747006" data-sdk="show_11747006"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+    <script src="https://libtl.com/sdk.js" data-zone="11747006" data-sdk="show_11747006"></script>
     <style>
       body {
         background-color: var(--tg-theme-bg-color, #ffffff);
