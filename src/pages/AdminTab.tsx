@@ -62,13 +62,38 @@ export function AdminTab() {
   return (
     <div className="h-full bg-[#0A0B0D] text-white p-4 pb-24 overflow-y-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-black">لوحة التحكم البسيطة</h1>
+        <div>
+          <h1 className="text-2xl font-black">لوحة التحكم</h1>
+          <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
+            المسجل حالياً: <span className="text-yellow-500">{user?.username || 'غير معروف'}</span>
+          </p>
+        </div>
         <button 
           onClick={fetchUsers}
           className="p-2 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
         >
           <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
         </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="bg-[#16181D] p-3 rounded-2xl border border-white/5 flex flex-col justify-center">
+          <div className="text-[9px] text-gray-500 uppercase font-bold">المستخدمين</div>
+          <div className="text-lg font-black text-white mt-0.5">{usersList.length}</div>
+        </div>
+        <div className="bg-[#16181D] p-3 rounded-2xl border border-white/5 flex flex-col justify-center text-yellow-500">
+          <div className="text-[9px] text-gray-500 uppercase font-bold">إجمالي USDT</div>
+          <div className="text-lg font-black mt-0.5">
+            {(usersList.reduce((acc, u) => acc + (u.balance || 0), 0) / 10000).toFixed(2)}
+          </div>
+        </div>
+        <div className="bg-[#16181D] p-3 rounded-2xl border border-white/5 flex flex-col justify-center text-blue-500">
+          <div className="text-[9px] text-gray-500 uppercase font-bold">الإحالات</div>
+          <div className="text-lg font-black mt-0.5">
+            {usersList.reduce((acc, u) => acc + (u.referralsCount || 0), 0)}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -90,7 +115,15 @@ export function AdminTab() {
                   {u.firstName || 'مستخدم'} 
                   <span className="text-yellow-500 ml-2">@{u.username || 'بدون_يوزر'}</span>
                 </div>
-                <div className="text-[10px] text-gray-500">ID: {u.id}</div>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(u.id);
+                    alert('تم نسخ المعرف: ' + u.id);
+                  }}
+                  className="text-[9px] text-gray-500 bg-white/5 px-2 py-0.5 rounded-md hover:bg-white/10 active:scale-95 transition-all"
+                >
+                  ID: {u.id}
+                </button>
               </div>
               
               <div className="flex items-center gap-4 text-right">
