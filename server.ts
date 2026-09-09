@@ -337,11 +337,11 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   let boostAmount = 100; // +0.01 USDT
   if (taskId === 'sys_add_home') {
     boostAmount = 3000; // +0.30 USDT
-  } else if (taskId === 'adsgram_reward') {
+  } else if (taskId.startsWith('adsgram_reward')) {
     boostAmount = 200; // +0.02 USDT
   } else if (taskId === 'adsgram_task') {
     boostAmount = 300; // +0.03 USDT
-  } else if (taskId.startsWith('adsgram_interstitial_')) {
+  } else if (taskId.startsWith('adsgram_interstitial')) {
     boostAmount = 100; // +0.01 USDT
   } else if (taskId === 'monetag_rewarded_interstitial') {
     boostAmount = 300; // +0.03 USDT
