@@ -291,12 +291,18 @@ export async function handleAuthAndReferral(initData: string, env: Env) {
         id: userId,
         username: tgUser.username || '',
         firstName: tgUser.first_name || '',
+        photoUrl: tgUser.photo_url || '',
         balance: 0,
+        totalEarned: 0,
+        totalWithdrawn: 0,
         miningRate: 1000, // Scaled by 10000 (0.10)
+        referralCode: userId,
         referralsCount: 0,
         referredBy: null,
         referralEarnings: 0,
-        createdAt: new Date().toISOString()
+        claimedWelcome: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
       };
     }
 
@@ -313,13 +319,15 @@ export async function handleAuthAndReferral(initData: string, env: Env) {
         if (!recordDoc) {
           // A. Update the referred user (mark as referred)
           userData.referredBy = referrerId;
+          userData.updatedAt = Date.now();
 
           // B. Reward the Referrer (Scaled values)
           referrerData.balance = (referrerData.balance || 0) + 1000; // +0.10 USDT
           referrerData.totalEarned = (referrerData.totalEarned || 0) + 1000;
-          referrerData.miningRate = (referrerData.miningRate || 0) + 100; // +0.01 Mining Rate
+          referrerData.miningRate = Math.min((referrerData.miningRate || 1000) + 100, 1500); // +0.01 Mining Rate (capped at max 0.15 / 1500)
           referrerData.referralEarnings = (referrerData.referralEarnings || 0) + 1000;
           referrerData.referralsCount = (referrerData.referralsCount || 0) + 1;
+          referrerData.updatedAt = Date.now();
 
           writes.push({
             update: {
@@ -331,11 +339,11 @@ export async function handleAuthAndReferral(initData: string, env: Env) {
           // C. Create Referral Record
           const referralRecord = {
             referrerId,
-            referredId: userId,
+            referredUserId: userId,
             rewardUSDT: 1000,
             miningBonus: 100,
             status: 'completed',
-            createdAt: new Date().toISOString()
+            createdAt: Date.now()
           };
           writes.push({
             update: {
