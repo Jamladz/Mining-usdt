@@ -107,10 +107,11 @@ async function getFormattedUser(userId: string) {
   };
 }
 
-// API ROUTES
+// API ROUTES (Using Router for clean isolation)
+const apiRouter = express.Router();
 
 // AUTHENTICATION & ATOMIC REFERRAL PROCESSING
-app.post('/api/auth', requireUser, async (req: any, res: any) => {
+apiRouter.post('/auth', requireUser, async (req: any, res: any) => {
   try {
     const tgUser = req.user;
     const userId = tgUser.id.toString();
@@ -215,7 +216,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   }
 });
 
-app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
+apiRouter.post('/welcome/claim', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
 
@@ -239,7 +240,7 @@ app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
   res.json({ success: true, user: updatedUser });
 });
 
-app.post('/api/mine', requireUser, async (req: any, res: any) => {
+apiRouter.post('/mine', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   
@@ -271,7 +272,7 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
   res.json({ success: true, balance: updatedUser.balance, lastClaimAt: updatedUser.lastClaimAt });
 });
 
-app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
+apiRouter.get('/mine/history', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
     const history = await db.select()
@@ -287,7 +288,7 @@ app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
   }
 });
 
-app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
+apiRouter.post('/tasks/complete', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const { taskId, provider } = req.body;
   
@@ -349,13 +350,13 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   res.json({ success: true, newRate });
 });
 
-app.get('/api/tasks', requireUser, async (req: any, res: any) => {
+apiRouter.get('/tasks', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const completed = await db.select().from(taskCompletions).where(eq(taskCompletions.userId, userId)).all();
   res.json({ completedTasks: completed.map(c => c.taskId) });
 });
 
-app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
+apiRouter.post('/withdraw', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const { amount, walletAddress } = req.body;
   
@@ -389,13 +390,13 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   res.json({ success: true });
 });
 
-app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
+apiRouter.get('/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const history = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).all();
   res.json({ history });
 });
 
-app.get('/api/referrals', requireUser, async (req: any, res: any) => {
+apiRouter.get('/referrals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const friends = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).orderBy(desc(referrals.createdAt)).all();
   
@@ -419,7 +420,7 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
 });
 
 // Admin endpoint for sekanedr_is
-app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
+apiRouter.get('/admin/users', requireUser, async (req: any, res: any) => {
   try {
     const adminUsername = (req.user?.username || '').toLowerCase();
     console.log(`[ADMIN ACCESS ATTEMPT] User: ${adminUsername}`);
@@ -438,11 +439,14 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
   }
 });
 
-// Catch-all for unknown API routes - MUST be after all valid API routes
-app.all('/api/(.*)', (req, res) => {
+// Catch-all for unknown API routes - MUST be at the end of the router
+apiRouter.all('*', (req, res) => {
   console.log(`[API 404] ${req.method} ${req.url}`);
   res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
+
+// Mount the API router
+app.use('/api', apiRouter);
 
 // Vite middleware for development
 async function startServer() {
@@ -455,7 +459,15 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get(/^(?!\/api).*/, (req, res) => {
+    
+    // SPA Fallback for production
+    app.get('*', (req, res) => {
+      // If the request somehow reached here and starts with /api, 
+      // it should have been caught by the router but wasn't.
+      // Return 404 JSON just in case.
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API route not found' });
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
