@@ -10,17 +10,38 @@
         "firstName": { "type": "string", "description": "Telegram first name" },
         "photoUrl": { "type": "string", "description": "Avatar photo URL" },
         "referralsCount": { "type": "integer", "description": "Number of users referred by this user" },
+        "earnedReferralCoins": { "type": "integer", "description": "Number of referral coins earned by this user" },
+        "claimedMilestones": { "type": "array", "description": "List of milestones claimed by this user", "items": { "type": "integer" } },
         "totalEarned": { "type": "number", "description": "Total USDT earned (scaled or raw decimal)" },
         "miningRate": { "type": "number", "description": "Current mining speed rate" },
         "lastActive": { "type": "string", "format": "date-time", "description": "Server timestamp of last active session sync" }
       },
       "required": ["id", "firstName"]
+    },
+    "Referral": {
+      "title": "Referral Relationship",
+      "description": "Record of a successful referral invitation linking the referrer and referred user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Document ID, which is the referred user's ID" },
+        "referrerId": { "type": "string", "description": "The Telegram ID of the user who made the invitation" },
+        "referredUserId": { "type": "string", "description": "The Telegram ID of the newly joined user" },
+        "referredName": { "type": "string", "description": "The first name/display name of the newly joined user" },
+        "referredUsername": { "type": "string", "description": "The username of the newly joined user" },
+        "rewardCoins": { "type": "integer", "description": "Referral coins rewarded to the referrer" },
+        "createdAt": { "type": "integer", "description": "Timestamp of the referral registration" }
+      },
+      "required": ["id", "referrerId", "referredUserId"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profiles indexed by their Telegram User ID"
+    },
+    "referrals/{referralId}": {
+      "schema": "Referral",
+      "description": "Referrals registry indexed by the referred user's ID"
     }
   }
 }

@@ -13,6 +13,8 @@ export interface User {
   referredBy?: string | null;
   referralsCount: number;
   referralEarnings: number; // scaled by 10000 (0.10 USDT per referral = 1000)
+  earnedReferralCoins: number; // in referral coins (250 coins per referral)
+  claimedMilestones?: number[];
   lastClaimAt?: number;
   claimedWelcome?: number;
   createdAt: number;

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { BottomNav } from './components/BottomNav';
 import { HomeTab } from './pages/HomeTab';
@@ -12,10 +12,43 @@ import { ReferralHub } from './components/ReferralHub';
 import { ProfileTab } from './pages/ProfileTab';
 import { WelcomeBonusSheet } from './components/WelcomeBonusSheet';
 import { AnimatePresence, motion } from 'motion/react';
+import { referralService } from './services/referralService';
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState('home');
-  const { user } = useApp();
+  const { user, setUser, showToast } = useApp();
+
+  useEffect(() => {
+    if (user && user.id) {
+      const handleReferral = async () => {
+        try {
+          const res = await referralService.processReferral(
+            user.id,
+            user.firstName || 'Friend',
+            user.username || ''
+          );
+          if (res && res.success) {
+            showToast(
+              <div className="flex flex-col gap-0.5 text-left" dir="ltr">
+                <span className="text-[13px] font-black text-emerald-200">🎉 Referral Reward Claimed!</span>
+                <span className="text-[11px] font-bold text-white opacity-90">
+                  You successfully joined via {res.referrerName}'s invite link and received +0.10 USDT!
+                </span>
+              </div>,
+              'success'
+            );
+            setUser(prev => prev ? {
+              ...prev,
+              balance: (prev.balance || 0) + (res.rewardAmount || 0)
+            } : null);
+          }
+        } catch (e) {
+          console.error('[App] Failed to process referral deep link:', e);
+        }
+      };
+      handleReferral();
+    }
+  }, [user?.id]);
 
   if (!user) {
     return (
