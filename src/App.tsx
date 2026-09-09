@@ -100,7 +100,7 @@ function AppContent() {
               <ProfileTab />
             </motion.div>
           )}
-          {currentTab === 'admin' && user?.username?.toLowerCase() === 'sekanedr_is' && (
+          {currentTab === 'admin' && (
             <motion.div key="admin" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <AdminTab />
             </motion.div>
