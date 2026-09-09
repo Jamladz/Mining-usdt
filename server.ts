@@ -435,7 +435,7 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
 });
 
 // Catch-all for unknown API routes - MUST be after all valid API routes
-app.all('/api/*', (req, res) => {
+app.all('/api/*all', (req, res) => {
   res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
 
