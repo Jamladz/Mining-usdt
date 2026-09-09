@@ -420,22 +420,27 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
 
 // Admin endpoint for sekanedr_is
 app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
-  const adminUsername = (req.user?.username || '').toLowerCase();
-  if (adminUsername !== 'sekanedr_is') {
-    return res.status(403).json({ error: 'Forbidden: Unauthorized access.' });
-  }
-
   try {
+    const adminUsername = (req.user?.username || '').toLowerCase();
+    console.log(`[ADMIN ACCESS ATTEMPT] User: ${adminUsername}`);
+
+    if (adminUsername !== 'sekanedr_is') {
+      console.warn(`[ADMIN ACCESS DENIED] Unauthorized user: ${adminUsername}`);
+      return res.status(403).json({ error: 'Forbidden: Unauthorized access. Only sekanedr_is can access this page.' });
+    }
+
     const allUsers = await db.select().from(users).orderBy(desc(users.createdAt)).all();
+    console.log(`[ADMIN ACCESS SUCCESS] Fetched ${allUsers.length} users.`);
     res.json({ users: allUsers });
   } catch (err) {
     console.error('[ADMIN FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch user profiles.' });
+    res.status(500).json({ error: 'Failed to fetch user profiles. Please check server logs.' });
   }
 });
 
 // Catch-all for unknown API routes - MUST be after all valid API routes
 app.all('/api/*all', (req, res) => {
+  console.log(`[API 404] ${req.method} ${req.url}`);
   res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
 

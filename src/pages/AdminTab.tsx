@@ -54,15 +54,24 @@ export function AdminTab() {
       
       if (!res.ok) {
         if (res.status === 403) {
-          throw new Error('Access denied. This page is only for authorized administrators.');
+          throw new Error('Access denied. This page is only for authorized administrators (sekanedr_is).');
+        }
+        if (res.status === 401) {
+          throw new Error('Authentication failed. Please restart the app from Telegram.');
         }
         const errorText = await res.text();
-        throw new Error(`Server error (${res.status}): ${errorText.substring(0, 50)}`);
+        console.error('Server error response:', errorText);
+        throw new Error(`Server error (${res.status}): ${errorText.substring(0, 100)}`);
       }
 
       const contentType = res.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Server returned an unexpected response format (not JSON).');
+        const text = await res.text();
+        console.error('Received non-JSON response:', text);
+        if (text.toLowerCase().includes('<!doctype')) {
+          throw new Error('The server returned an HTML page instead of data. This usually means the API route was not found or the server crashed.');
+        }
+        throw new Error(`Unexpected response format: ${contentType || 'unknown'}`);
       }
 
       const data = await res.json();
