@@ -21,51 +21,40 @@ const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
-  // Allow mock initData in preview/dev or when token is not configured
-  if (
-    !initData ||
-    initData === 'mock_init_data' ||
-    initData.startsWith('mock_') ||
-    !BOT_TOKEN ||
-    BOT_TOKEN === 'mock_token'
-  ) {
+  // In development, allow bypass if token is mock_token
+  if (process.env.NODE_ENV !== 'production' && BOT_TOKEN === 'mock_token') {
     try {
       const urlParams = new URLSearchParams(initData);
       const userStr = urlParams.get('user');
       if (userStr) return JSON.parse(userStr);
-      return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
+      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
     } catch {
-      return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
+      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
     }
   }
 
-  try {
-    const urlParams = new URLSearchParams(initData);
-    const hash = urlParams.get('hash');
-    urlParams.delete('hash');
-
-    const keys = Array.from(urlParams.keys()).sort();
-    const dataCheckString = keys.map(key => `${key}=${urlParams.get(key)}`).join('\n');
-
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-    const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-    if (hash === expectedHash) {
-      const userStr = urlParams.get('user');
-      if (userStr) return JSON.parse(userStr);
-    }
-  } catch (err) {
-    console.warn('[AUTH] Failed parsing Telegram signature:', err);
+  // Fail-fast in production if token is mock_token or empty
+  if (!BOT_TOKEN || BOT_TOKEN === 'mock_token') {
+    throw new Error('Telegram Bot Token (TELEGRAM_BOT_TOKEN) is not configured in production mode!');
   }
 
-  // Fallback to user parameter in query if signature check didn't pass in dev
-  try {
-    const urlParams = new URLSearchParams(initData);
-    const userStr = urlParams.get('user');
-    if (userStr) return JSON.parse(userStr);
-  } catch (e) {}
+  const urlParams = new URLSearchParams(initData);
+  const hash = urlParams.get('hash');
+  urlParams.delete('hash');
 
-  return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
+  const keys = Array.from(urlParams.keys()).sort();
+  const dataCheckString = keys.map(key => `${key}=${urlParams.get(key)}`).join('\n');
+
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+  const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+  if (hash !== expectedHash) {
+    throw new Error('Invalid signature');
+  }
+
+  const userStr = urlParams.get('user');
+  if (!userStr) throw new Error('No user data');
+  return JSON.parse(userStr);
 }
 
 // Middleware to extract and validate user
@@ -446,17 +435,10 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   res.json({ referrals: friendDetails });
 });
 
-// Admin helper
-const isAuthorizedAdmin = (user: any) => {
-  if (!user) return false;
-  const username = (user.username || '').toLowerCase();
-  const id = String(user.id || '');
-  return username.includes('sekanedr') || username === 'dev_user' || id === '12345';
-};
-
-// Admin endpoint to list all users
+// Admin endpoint for sekanedr_is
 app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) {
+  const adminUsername = (req.user?.username || '').toLowerCase();
+  if (adminUsername !== 'sekanedr_is') {
     return res.status(403).json({ error: 'Forbidden: Unauthorized access.' });
   }
 
@@ -466,30 +448,6 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
   } catch (err) {
     console.error('[ADMIN FETCH ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch user profiles.' });
-  }
-});
-
-// Admin endpoint to update user balance
-app.post('/api/admin/update-balance', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) {
-    return res.status(403).json({ error: 'Forbidden: Unauthorized access.' });
-  }
-
-  const { targetUserId, newBalance } = req.body;
-  if (!targetUserId || typeof newBalance !== 'number') {
-    return res.status(400).json({ error: 'Invalid parameters.' });
-  }
-
-  try {
-    await db.update(users)
-      .set({ balance: Math.max(0, Math.floor(newBalance)) })
-      .where(eq(users.id, String(targetUserId)))
-      .run();
-
-    res.json({ success: true, message: 'Balance updated successfully.' });
-  } catch (err) {
-    console.error('[ADMIN UPDATE BALANCE ERROR]', err);
-    res.status(500).json({ error: 'Failed to update user balance.' });
   }
 });
 
