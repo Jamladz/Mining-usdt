@@ -1,4 +1,4 @@
-name = "usdt-miner-backend"
+name = "mining-usdt"
 main = "cloudflare-worker.ts"
 compatibility_date = "2024-09-23"
 
