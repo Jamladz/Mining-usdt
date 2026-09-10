@@ -13,7 +13,8 @@ interface UserData {
 }
 
 interface WithdrawalData {
-  id: number;
+  id: string;
+  localId?: number;
   userId: string;
   username?: string;
   firstName?: string;
@@ -66,10 +67,12 @@ export function AdminTab() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (initData) {
+      loadData();
+    }
+  }, [initData]);
 
-  const handleApprove = async (id: number) => {
+  const handleApprove = async (id: string) => {
     if (!window.confirm('Are you sure you want to approve this withdrawal?')) return;
     try {
       const res = await fetchWithAuth(`/api/admin/withdrawals/${id}/approve`, { method: 'POST' });
@@ -84,7 +87,7 @@ export function AdminTab() {
     }
   };
 
-  const handleReject = async (id: number) => {
+  const handleReject = async (id: string) => {
     if (!window.confirm('Are you sure you want to reject this withdrawal and refund the user?')) return;
     try {
       const res = await fetchWithAuth(`/api/admin/withdrawals/${id}/reject`, { method: 'POST' });

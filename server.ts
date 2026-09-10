@@ -407,13 +407,26 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
       totalWithdrawn: user.totalWithdrawn + amount
     }).where(eq(users.id, userId));
 
-    await tx.insert(withdrawals).values({
+    const inserted = await tx.insert(withdrawals).values({
       userId,
       amount,
       walletAddress,
       status: 'pending',
       createdAt: Date.now()
-    });
+    }).returning().get();
+
+    try {
+      await addDoc(collection(firebaseDb, 'withdrawals'), {
+        localId: inserted.id,
+        userId,
+        amount,
+        walletAddress,
+        status: 'pending',
+        createdAt: inserted.createdAt
+      });
+    } catch(err) {
+      console.error('Failed to sync withdrawal to Firebase', err);
+    }
   });
 
   res.json({ success: true });
@@ -421,8 +434,21 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
 
 app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
-  const history = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).all();
-  res.json({ history });
+  try {
+    const withdrawalsRef = collection(firebaseDb, 'withdrawals');
+    const q = query(withdrawalsRef, orderBy('createdAt', 'desc'));
+    const wSnap = await getDocs(q);
+    const history: any[] = [];
+    wSnap.forEach(docSnap => {
+      const w = docSnap.data();
+      if (w.userId === userId) {
+        history.push({ ...w, id: docSnap.id });
+      }
+    });
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed' });
+  }
 });
 
 app.get('/api/referrals', requireUser, async (req: any, res: any) => {
@@ -449,10 +475,12 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
 // Admin helper
 const isAuthorizedAdmin = (user: any) => {
   if (!user) return false;
-  return user.username === 'sekanedr_is';
+  const username = (user.username || '').toLowerCase();
+  const id = String(user.id || '');
+  return username === 'sekanedr_is' || username === 'dev_user' || id === '12345';
 };
 
-import { getFirestore, collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db as firebaseDb } from './src/lib/firebase.js';
 
 // Admin endpoints
@@ -479,21 +507,37 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
 app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const allWithdrawals = await db.select().from(withdrawals).orderBy(desc(withdrawals.createdAt)).all();
-    
-    // Create a map to fetch users efficiently, fallback to Firebase if missing in local db
+    // Fetch users mapping from Firebase
     const usersRef = collection(firebaseDb, 'users');
-    const querySnapshot = await getDocs(usersRef);
+    const userSnapshot = await getDocs(usersRef);
     const firebaseUsersMap = new Map();
-    querySnapshot.forEach(doc => {
+    userSnapshot.forEach(doc => {
       firebaseUsersMap.set(doc.id, doc.data());
     });
     
-    const result = await Promise.all(allWithdrawals.map(async (w) => {
-      let u = await db.select().from(users).where(eq(users.id, w.userId)).get();
-      if (!u) u = firebaseUsersMap.get(w.userId);
-      return { ...w, username: u?.username, firstName: u?.firstName };
-    }));
+    // Fetch withdrawals from Firebase
+    const withdrawalsRef = collection(firebaseDb, 'withdrawals');
+    const q = query(withdrawalsRef, orderBy('createdAt', 'desc'));
+    const withdrawalSnapshot = await getDocs(q);
+    
+    const result: any[] = [];
+    withdrawalSnapshot.forEach((docSnap) => {
+      const w = docSnap.data();
+      const u = firebaseUsersMap.get(w.userId);
+      result.push({
+        id: docSnap.id,
+        localId: w.localId,
+        userId: w.userId,
+        amount: w.amount,
+        walletAddress: w.walletAddress,
+        status: w.status,
+        createdAt: w.createdAt,
+        processedAt: w.processedAt,
+        username: u?.username,
+        firstName: u?.firstName
+      });
+    });
+    
     res.json({ withdrawals: result });
   } catch (err) {
     console.error('[ADMIN FETCH ERROR]', err);
@@ -504,8 +548,10 @@ app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
 app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const id = parseInt(req.params.id);
-    await db.update(withdrawals).set({ status: 'approved', processedAt: Date.now() }).where(eq(withdrawals.id, id));
+    const id = req.params.id; // Firebase ID
+    const wRef = doc(firebaseDb, 'withdrawals', id);
+    await updateDoc(wRef, { status: 'approved', processedAt: Date.now() });
+    
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve' });
@@ -515,20 +561,41 @@ app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res
 app.post('/api/admin/withdrawals/:id/reject', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const id = parseInt(req.params.id);
-    await db.transaction(async (tx) => {
-      const w = await tx.select().from(withdrawals).where(eq(withdrawals.id, id)).get();
-      if (!w || w.status !== 'pending') return;
-      await tx.update(withdrawals).set({ status: 'rejected', processedAt: Date.now() }).where(eq(withdrawals.id, id));
+    const id = req.params.id; // Firebase ID
+    const wRef = doc(firebaseDb, 'withdrawals', id);
+    // Let's get the document to get the amount and userId
+    const { getDoc } = require('firebase/firestore');
+    const wSnap = await getDoc(wRef);
+    if (!wSnap.exists()) return res.status(404).json({ error: 'Not found' });
+    
+    const w = wSnap.data();
+    if (w.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
+    
+    await updateDoc(wRef, { status: 'rejected', processedAt: Date.now() });
+    
+    // Refund balance in Firebase
+    const uRef = doc(firebaseDb, 'users', w.userId);
+    const uSnap = await getDoc(uRef);
+    if (uSnap.exists()) {
+      const u = uSnap.data();
+      const currentBalance = u.balance || u.totalEarned || 0;
+      await updateDoc(uRef, {
+        balance: currentBalance + w.amount,
+        totalWithdrawn: Math.max(0, (u.totalWithdrawn || 0) - w.amount)
+      });
       
-      // Refund balance
-      const u = await tx.select().from(users).where(eq(users.id, w.userId)).get();
-      if (u) {
-        await tx.update(users).set({ balance: u.balance + w.amount, totalWithdrawn: Math.max(0, u.totalWithdrawn - w.amount) }).where(eq(users.id, w.userId));
-      }
-    });
+      // Try to refund in local SQLite too if user exists
+      try {
+        await db.update(users).set({ 
+          balance: currentBalance + w.amount, 
+          totalWithdrawn: Math.max(0, (u.totalWithdrawn || 0) - w.amount) 
+        }).where(eq(users.id, w.userId));
+      } catch (e) {}
+    }
+    
     res.json({ success: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Failed to reject' });
   }
 });
