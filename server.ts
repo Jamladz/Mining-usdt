@@ -530,7 +530,7 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
     }).returning().get();
 
     try {
-      await adminDb.collection('withdrawals').add({
+      await adminDb.collection('withdrawals').doc(String(inserted.id)).set({
         localId: inserted.id,
         userId,
         amount,
@@ -758,36 +758,146 @@ const isAuthorizedAdmin = (user: any) => {
   return username === 'sekanedr_is' || username === 'dev_user' || id === '12345';
 };
 
-// Admin endpoints
+// Idempotent background migration from SQLite/LibSQL to Firestore
+async function migrateSqliteToFirestore() {
+  console.log('[MIGRATION] Checking and migrating existing SQLite users & withdrawals to Firestore...');
+  try {
+    // 1. Fetch all SQLite users
+    const allSqlUsers = await db.select().from(users).all();
+    console.log(`[MIGRATION] Found ${allSqlUsers.length} users in SQLite.`);
+    
+    let migratedUsersCount = 0;
+    for (const u of allSqlUsers) {
+      try {
+        const userIdStr = String(u.id);
+        const docRef = adminDb.collection('users').doc(userIdStr);
+        const docSnap = await docRef.get();
+        
+        let existingData = docSnap.exists ? docSnap.data() : null;
+        
+        // Safety check to preserve newer/valid financial data
+        const mergedBalance = Math.max(u.balance || 0, existingData?.balance || 0);
+        const mergedTotalEarned = Math.max(u.totalEarned || 0, existingData?.totalEarned || 0);
+        const mergedTotalWithdrawn = Math.max(u.totalWithdrawn || 0, existingData?.totalWithdrawn || 0);
+        const mergedMiningRate = Math.max(u.miningRate || 0, existingData?.miningRate || 0);
+        const mergedReferralsCount = Math.max(u.referralsCount || 0, existingData?.referralsCount || 0);
+        const mergedReferralEarnings = Math.max(u.referralEarnings || 0, existingData?.referralEarnings || 0);
+        
+        await docRef.set({
+          id: userIdStr,
+          username: u.username || existingData?.username || '',
+          firstName: u.firstName || existingData?.firstName || '',
+          photoUrl: u.photoUrl || existingData?.photoUrl || '',
+          balance: mergedBalance,
+          totalEarned: mergedTotalEarned,
+          totalWithdrawn: mergedTotalWithdrawn,
+          miningRate: mergedMiningRate,
+          referralCode: u.referralCode || existingData?.referralCode || userIdStr,
+          referredBy: u.referredBy || existingData?.referredBy || '',
+          referralsCount: mergedReferralsCount,
+          referralEarnings: mergedReferralEarnings,
+          claimedWelcome: u.claimedWelcome || existingData?.claimedWelcome || 0,
+          claimedMilestones: existingData?.claimedMilestones || [],
+          createdAt: u.createdAt || existingData?.createdAt || Date.now(),
+          updatedAt: u.updatedAt || existingData?.updatedAt || Date.now(),
+          lastActive: existingData?.lastActive || FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        migratedUsersCount++;
+      } catch (userErr) {
+        console.error(`[MIGRATION] Error migrating user ${u.id}:`, userErr);
+      }
+    }
+    console.log(`[MIGRATION] Successfully processed/merged ${migratedUsersCount} user records.`);
+    
+    // 2. Fetch all SQLite withdrawals
+    const allSqlWithdrawals = await db.select().from(withdrawals).all();
+    console.log(`[MIGRATION] Found ${allSqlWithdrawals.length} withdrawals in SQLite.`);
+    
+    // Build a map of users for fast username/firstName lookup if withdrawals don't have them
+    const userMap = new Map();
+    allSqlUsers.forEach(user => {
+      userMap.set(String(user.id), user);
+    });
+    
+    let migratedWithdrawalsCount = 0;
+    for (const w of allSqlWithdrawals) {
+      try {
+        const withdrawalIdStr = String(w.id);
+        const docRef = adminDb.collection('withdrawals').doc(withdrawalIdStr);
+        
+        // Fetch matching user from our SQLite users map
+        const userObj = userMap.get(String(w.userId));
+        const username = userObj?.username || '';
+        const firstName = userObj?.firstName || '';
+        
+        // Upsert withdrawal safely
+        await docRef.set({
+          localId: w.id,
+          userId: String(w.userId),
+          amount: w.amount,
+          walletAddress: w.walletAddress,
+          status: w.status || 'pending',
+          createdAt: w.createdAt,
+          processedAt: w.processedAt || null,
+          transactionId: w.transactionId || '',
+          username: username,
+          firstName: firstName
+        }, { merge: true });
+        
+        migratedWithdrawalsCount++;
+      } catch (wErr) {
+        console.error(`[MIGRATION] Error migrating withdrawal ${w.id}:`, wErr);
+      }
+    }
+    console.log(`[MIGRATION] Successfully processed/merged ${migratedWithdrawalsCount} withdrawal records.`);
+    console.log('[MIGRATION] Idempotent synchronization completed successfully.');
+  } catch (err: any) {
+    console.error('[MIGRATION CRITICAL ERROR] Migration failed:', err);
+  }
+}
+
+// Admin endpoints - Direct querying of authoritative SQLite/LibSQL database
 app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const usersSnap = await adminDb.collection('users').get();
-    const withdrawalsSnap = await adminDb.collection('withdrawals').get();
-    const claimsSnap = await adminDb.collection('mining_claims').get();
+    // 1. Total users
+    const usersCountRes = await db.select({ count: sql<number>`count(*)` }).from(users).get();
+    const totalUsers = usersCountRes ? usersCountRes.count : 0;
     
-    let totalUsers = usersSnap.size;
-    let totalBalance = 0;
+    // 2. Pool Liquidity (total balances in system)
+    const balanceSumRes = await db.select({ sum: sql<number>`sum(${users.balance})` }).from(users).get();
+    const totalBalance = balanceSumRes ? (balanceSumRes.sum || 0) : 0;
     
-    usersSnap.forEach(doc => {
-      const d = doc.data();
-      totalBalance += d.balance || 0;
-    });
+    // 3. Paid Out (sum of approved withdrawals)
+    const approvedSumRes = await db.select({ sum: sql<number>`sum(${withdrawals.amount})` })
+      .from(withdrawals)
+      .where(eq(withdrawals.status, 'approved'))
+      .get();
+    const approvedUSDT = approvedSumRes ? (approvedSumRes.sum || 0) : 0;
     
-    let pendingWithdrawals = 0;
-    let approvedWithdrawals = 0;
-    let rejectedWithdrawals = 0;
-    let approvedUSDT = 0;
-    
-    withdrawalsSnap.forEach(doc => {
-      const d = doc.data();
-      if (d.status === 'pending') pendingWithdrawals++;
-      else if (d.status === 'approved') {
-        approvedWithdrawals++;
-        approvedUSDT += d.amount || 0;
-      }
-      else if (d.status === 'rejected') rejectedWithdrawals++;
-    });
+    // 4. Counts of pending, approved, rejected withdrawals
+    const pendingCountRes = await db.select({ count: sql<number>`count(*)` })
+      .from(withdrawals)
+      .where(eq(withdrawals.status, 'pending'))
+      .get();
+    const pendingWithdrawals = pendingCountRes ? pendingCountRes.count : 0;
+
+    const approvedCountRes = await db.select({ count: sql<number>`count(*)` })
+      .from(withdrawals)
+      .where(eq(withdrawals.status, 'approved'))
+      .get();
+    const approvedWithdrawals = approvedCountRes ? approvedCountRes.count : 0;
+
+    const rejectedCountRes = await db.select({ count: sql<number>`count(*)` })
+      .from(withdrawals)
+      .where(eq(withdrawals.status, 'rejected'))
+      .get();
+    const rejectedWithdrawals = rejectedCountRes ? rejectedCountRes.count : 0;
+
+    // 5. Total Claims
+    const claimsCountRes = await db.select({ count: sql<number>`count(*)` }).from(miningClaims).get();
+    const totalClaims = claimsCountRes ? claimsCountRes.count : 0;
     
     res.json({
       totalUsers,
@@ -796,7 +906,7 @@ app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
       pendingWithdrawals,
       approvedWithdrawals,
       rejectedWithdrawals,
-      totalClaims: claimsSnap.size
+      totalClaims
     });
   } catch (err: any) {
     console.error('[ADMIN STATS ERROR]', err);
@@ -811,33 +921,37 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
     const limit = parseInt(req.query.limit || '10', 10);
     const search = (req.query.search || '').trim().toLowerCase();
     
-    const usersSnap = await adminDb.collection('users').get();
-    let allUsers: any[] = [];
-    usersSnap.forEach((doc) => {
-      allUsers.push({ id: doc.id, ...doc.data() });
-    });
-    
-    // Sort descending by lastActive or createdAt
-    allUsers.sort((a, b) => {
-      const timeA = a.lastActive ? (a.lastActive.seconds ? a.lastActive.seconds * 1000 : a.lastActive) : 0;
-      const timeB = b.lastActive ? (b.lastActive.seconds ? b.lastActive.seconds * 1000 : b.lastActive) : 0;
-      return timeB - timeA;
-    });
-    
+    let whereClause = undefined;
     if (search) {
-      allUsers = allUsers.filter(u => 
-        String(u.id).toLowerCase().includes(search) || 
-        String(u.username || '').toLowerCase().includes(search) || 
-        String(u.firstName || '').toLowerCase().includes(search)
-      );
+      whereClause = sql`LOWER(${users.id}) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.username}, '')) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.firstName}, '')) LIKE ${'%' + search + '%'}`;
     }
     
-    const total = allUsers.length;
-    const startIndex = (page - 1) * limit;
-    const paginatedUsers = allUsers.slice(startIndex, startIndex + limit);
+    // Get total count
+    let countQuery: any = db.select({ count: sql<number>`count(*)` }).from(users);
+    if (whereClause) {
+      countQuery = countQuery.where(whereClause);
+    }
+    const countResult = await countQuery.get();
+    const total = countResult ? countResult.count : 0;
+    
+    // Fetch paginated users, sorted by lastClaimAt or created_at descending, or updatedAt
+    let usersQuery: any = db.select().from(users);
+    if (whereClause) {
+      usersQuery = usersQuery.where(whereClause) as any;
+    }
+    
+    const paginatedUsers = await usersQuery
+      .orderBy(desc(users.updatedAt))
+      .limit(limit)
+      .offset((page - 1) * limit)
+      .all();
     
     res.json({
       users: paginatedUsers,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
       pagination: {
         total,
         page,
@@ -846,7 +960,7 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
       }
     });
   } catch (err: any) {
-    console.error('[ADMIN FETCH ERROR]', err);
+    console.error('[ADMIN FETCH USERS ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch users', details: err.message });
   }
 });
@@ -859,54 +973,65 @@ app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
     const status = (req.query.status || '').trim();
     const search = (req.query.search || '').trim().toLowerCase();
     
-    const userSnapshot = await adminDb.collection('users').get();
-    const firebaseUsersMap = new Map();
-    userSnapshot.forEach(doc => {
-      firebaseUsersMap.set(doc.id, doc.data());
-    });
-    
-    const withdrawalSnapshot = await adminDb.collection('withdrawals').get();
-    let result: any[] = [];
-    
-    withdrawalSnapshot.forEach((docSnap) => {
-      const w = docSnap.data();
-      const u = firebaseUsersMap.get(w.userId);
-      result.push({
-        id: docSnap.id,
-        localId: w.localId,
-        userId: w.userId,
-        amount: w.amount,
-        walletAddress: w.walletAddress,
-        status: w.status,
-        transactionId: w.transactionId || '',
-        createdAt: w.createdAt,
-        processedAt: w.processedAt,
-        username: u?.username || '',
-        firstName: u?.firstName || ''
-      });
-    });
-    
-    result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const conditions: any[] = [];
     
     if (status && status !== 'all') {
-      result = result.filter(w => w.status === status);
+      conditions.push(eq(withdrawals.status, status));
     }
     
     if (search) {
-      result = result.filter(w => 
-        String(w.userId).toLowerCase().includes(search) || 
-        String(w.walletAddress || '').toLowerCase().includes(search) || 
-        String(w.username || '').toLowerCase().includes(search) || 
-        String(w.firstName || '').toLowerCase().includes(search)
-      );
+      conditions.push(sql`(LOWER(${withdrawals.userId}) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${withdrawals.walletAddress}, '')) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.username}, '')) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.firstName}, '')) LIKE ${'%' + search + '%'})`);
     }
     
-    const total = result.length;
-    const startIndex = (page - 1) * limit;
-    const paginatedWithdrawals = result.slice(startIndex, startIndex + limit);
+    let whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    
+    // Count query
+    let countQuery: any = db.select({ count: sql<number>`count(*)` }).from(withdrawals);
+    if (search) {
+      countQuery = countQuery.leftJoin(users, eq(withdrawals.userId, users.id)) as any;
+    }
+    if (whereClause) {
+      countQuery = countQuery.where(whereClause) as any;
+    }
+    const countResult = await countQuery.get();
+    const total = countResult ? countResult.count : 0;
+    
+    // Paginated, joined query
+    let selectQuery: any = db.select({
+      id: withdrawals.id,
+      userId: withdrawals.userId,
+      amount: withdrawals.amount,
+      walletAddress: withdrawals.walletAddress,
+      status: withdrawals.status,
+      createdAt: withdrawals.createdAt,
+      processedAt: withdrawals.processedAt,
+      transactionId: withdrawals.transactionId,
+      username: users.username,
+      firstName: users.firstName
+    })
+    .from(withdrawals)
+    .leftJoin(users, eq(withdrawals.userId, users.id));
+    
+    if (whereClause) {
+      selectQuery = selectQuery.where(whereClause) as any;
+    }
+    
+    const rawResults = await selectQuery
+      .orderBy(desc(withdrawals.createdAt))
+      .limit(limit)
+      .offset((page - 1) * limit)
+      .all();
+      
+    const mapped = rawResults.map(w => ({
+      ...w,
+      id: String(w.id), // Convert ID to string for AdminTab compatibility
+      localId: w.id,
+      username: w.username || '',
+      firstName: w.firstName || ''
+    }));
     
     res.json({
-      withdrawals: paginatedWithdrawals,
+      withdrawals: mapped,
       pagination: {
         total,
         page,
@@ -915,42 +1040,48 @@ app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
       }
     });
   } catch (err: any) {
-    console.error('[ADMIN FETCH ERROR]', err);
+    console.error('[ADMIN FETCH WITHDRAWALS ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch withdrawals', details: err.message });
   }
 });
 
 app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  const id = req.params.id; // Firebase ID
+  const idStr = req.params.id; // SQLite ID
   const { transactionId } = req.body;
+  const idNum = parseInt(idStr, 10);
   
   try {
-    const wDocRef = adminDb.collection('withdrawals').doc(id);
-    const wSnap = await wDocRef.get();
-    if (!wSnap.exists) return res.status(404).json({ error: 'Withdrawal not found' });
+    if (isNaN(idNum)) {
+      return res.status(400).json({ error: 'Invalid withdrawal ID' });
+    }
     
-    const wData = wSnap.data()!;
+    // 1. Fetch current status from SQLite to ensure it is pending
+    const wData = await db.select().from(withdrawals).where(eq(withdrawals.id, idNum)).get();
+    if (!wData) return res.status(404).json({ error: 'Withdrawal not found' });
+    
     if (wData.status !== 'pending') {
       return res.status(400).json({ error: 'Withdrawal has already been processed' });
     }
     
-    await wDocRef.update({
+    const processedAt = Date.now();
+    
+    // 2. Update SQLite
+    await db.update(withdrawals).set({
       status: 'approved',
       transactionId: transactionId || '',
-      processedAt: Date.now()
-    });
+      processedAt
+    }).where(eq(withdrawals.id, idNum));
     
-    if (wData.localId) {
-      try {
-        await db.update(withdrawals).set({
-          status: 'approved',
-          transactionId: transactionId || '',
-          processedAt: Date.now()
-        }).where(eq(withdrawals.id, wData.localId));
-      } catch (e) {
-        console.error('Failed to update local SQLite withdrawal status:', e);
-      }
+    // 3. Update Firestore (Idempotent update)
+    try {
+      await adminDb.collection('withdrawals').doc(idStr).set({
+        status: 'approved',
+        transactionId: transactionId || '',
+        processedAt
+      }, { merge: true });
+    } catch (e) {
+      console.error('[APPROVE FIRESTORE ERROR] Non-blocking Firestore update failed:', e);
     }
     
     res.json({ success: true });
@@ -962,55 +1093,62 @@ app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res
 
 app.post('/api/admin/withdrawals/:id/reject', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  const id = req.params.id; // Firebase ID
+  const idStr = req.params.id; // SQLite ID
+  const idNum = parseInt(idStr, 10);
   
   try {
-    const wDocRef = adminDb.collection('withdrawals').doc(id);
-    const wSnap = await wDocRef.get();
-    if (!wSnap.exists) return res.status(404).json({ error: 'Withdrawal not found' });
+    if (isNaN(idNum)) {
+      return res.status(400).json({ error: 'Invalid withdrawal ID' });
+    }
     
-    const wData = wSnap.data()!;
+    // 1. Fetch current status from SQLite to ensure it is pending
+    const wData = await db.select().from(withdrawals).where(eq(withdrawals.id, idNum)).get();
+    if (!wData) return res.status(404).json({ error: 'Withdrawal not found' });
+    
     if (wData.status !== 'pending') {
       return res.status(400).json({ error: 'Withdrawal has already been processed' });
     }
     
-    await wDocRef.update({
-      status: 'rejected',
-      processedAt: Date.now()
-    });
+    const processedAt = Date.now();
     
-    if (wData.localId) {
-      try {
-        await db.update(withdrawals).set({
-          status: 'rejected',
-          processedAt: Date.now()
-        }).where(eq(withdrawals.id, wData.localId));
-      } catch (e) {
-        console.error('Failed to update local SQLite withdrawal status:', e);
-      }
-    }
-    
-    const uDocRef = adminDb.collection('users').doc(wData.userId);
-    const uSnap = await uDocRef.get();
-    if (uSnap.exists) {
-      const uData = uSnap.data()!;
-      const newBalance = (uData.balance || 0) + wData.amount;
-      const newTotalWithdrawn = Math.max(0, (uData.totalWithdrawn || 0) - wData.amount);
+    // 2. Perform rejection and balance refund in SQLite inside a transaction
+    await db.transaction(async (tx) => {
+      await tx.update(withdrawals).set({
+        status: 'rejected',
+        processedAt
+      }).where(eq(withdrawals.id, idNum));
       
-      await uDocRef.update({
-        balance: newBalance,
-        totalWithdrawn: newTotalWithdrawn
-      });
-      
-      try {
-        await db.update(users).set({
+      const u = await tx.select().from(users).where(eq(users.id, wData.userId)).get();
+      if (u) {
+        const newBalance = u.balance + wData.amount;
+        const newTotalWithdrawn = Math.max(0, u.totalWithdrawn - wData.amount);
+        await tx.update(users).set({
           balance: newBalance,
           totalWithdrawn: newTotalWithdrawn,
           updatedAt: Date.now()
         }).where(eq(users.id, wData.userId));
-      } catch (e) {
-        console.error('Failed to update local SQLite user balance on rejection:', e);
       }
+    });
+    
+    // 3. Sync update to Firestore
+    try {
+      await adminDb.collection('withdrawals').doc(idStr).set({
+        status: 'rejected',
+        processedAt
+      }, { merge: true });
+      
+      // Update user in Firestore
+      const uDocRef = adminDb.collection('users').doc(wData.userId);
+      const uSnap = await uDocRef.get();
+      if (uSnap.exists) {
+        const uData = uSnap.data()!;
+        await uDocRef.update({
+          balance: (uData.balance || 0) + wData.amount,
+          totalWithdrawn: Math.max(0, (uData.totalWithdrawn || 0) - wData.amount)
+        });
+      }
+    } catch (e) {
+      console.error('[REJECT FIRESTORE ERROR] Non-blocking Firestore update failed:', e);
     }
     
     res.json({ success: true });
@@ -1022,6 +1160,11 @@ app.post('/api/admin/withdrawals/:id/reject', requireUser, async (req: any, res:
 
 // Vite middleware for development
 async function startServer() {
+  // Trigger background idempotent SQLite to Firestore migration on boot
+  migrateSqliteToFirestore().catch((err) => {
+    console.error('[BACKGROUND MIGRATION ERROR]', err);
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

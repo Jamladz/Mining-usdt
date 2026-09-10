@@ -454,17 +454,23 @@ export function AdminTab() {
                       <div className="text-sm font-black text-slate-800">{u.firstName || 'User'}</div>
                       <div className="text-[10px] font-bold text-slate-400 font-mono" dir="ltr">ID: {u.id}</div>
                     </div>
-                    {u.username && (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg" dir="ltr">
-                        @{u.username}
-                      </span>
-                    )}
+                    <span className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-lg",
+                      u.username ? "text-emerald-600 bg-emerald-50" : "text-slate-400 bg-slate-100"
+                    )} dir="ltr">
+                      {u.username ? `@${u.username}` : 'No username'}
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 mt-0.5">
                     <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
                       <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Wallet Balance</span>
                       <span className="text-xs font-black text-slate-800 block mt-0.5">{u.balance !== undefined ? formatUSDTPrecise(u.balance) : '0.0000'} USDT</span>
+                    </div>
+
+                    <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
+                      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">USDT Collected</span>
+                      <span className="text-xs font-black text-slate-800 block mt-0.5">{u.totalEarned !== undefined ? formatUSDTPrecise(u.totalEarned) : '0.0000'} USDT</span>
                     </div>
 
                     <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
@@ -477,7 +483,7 @@ export function AdminTab() {
                       <span className="text-xs font-black text-slate-800 block mt-0.5">{u.referralsCount || 0} friends</span>
                     </div>
 
-                    <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
+                    <div className="bg-slate-50/50 p-2.5 rounded-xl border border-slate-100 col-span-2">
                       <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Joined Platform</span>
                       <span className="text-xs font-bold text-slate-500 block mt-0.5">{getJoinedDate(u)}</span>
                     </div>
