@@ -8,11 +8,8 @@ service cloud.firestore {
 
     // Public users collection for Telegram ID search and profile synchronization
     match /users/{userId} {
-      // Allow individual lookups (get)
-      allow get: if true;
-      
-      // List is restricted (requires custom logic or backend)
-      allow list: if false;
+      // Read is open to allow searching by any Telegram user
+      allow read: if true;
       
       // Write is allowed to synchronize their own Telegram Profile
       allow create, update: if request.resource.data.id == userId;
@@ -20,11 +17,8 @@ service cloud.firestore {
 
     // Secure referrals collection
     match /referrals/{referralId} {
-      // Allow individual lookups
-      allow get: if true;
-      
-      // List is restricted
-      allow list: if false;
+      // Read is open to allow loading referral histories
+      allow read: if true;
 
       // Create is allowed if registering the referral mapping where the document ID is the referred user ID
       allow create: if request.resource.data.referredUserId == referralId;

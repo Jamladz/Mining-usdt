@@ -62,16 +62,6 @@ export function TasksTab() {
         body: JSON.stringify({ taskId: finalTaskId, provider })
       });
       
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Server error: ${res.status}`);
-      }
-
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Unexpected response format');
-      }
-
       const data = await res.json();
       if (data.success) {
         // Auto-complete parent task if final subtask completed

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Home, CheckSquare, Users, User, ShieldCheck } from 'lucide-react';
-import { cn } from '@/src/lib/utils';
+import { cn, isAdminUser } from '../lib/utils';
 import { motion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 
@@ -19,7 +19,7 @@ export function BottomNav({ currentTab, setCurrentTab }: BottomNavProps) {
     { id: 'profile', icon: User, label: 'Profile' }
   ];
 
-  if (user?.username?.toLowerCase() === 'sekanedr_is') {
+  if (isAdminUser(user)) {
     navItems.push({ id: 'admin', icon: ShieldCheck, label: 'Admin' });
   }
 

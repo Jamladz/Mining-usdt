@@ -53,14 +53,25 @@ function AppContent() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F5F7F9] flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-[#F5F7F9] flex flex-col items-center justify-center p-4 space-y-4 text-center">
         <motion.div
-          animate={{ scale: [1, 1.1, 1], rotate: [0, 180, 360] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="relative"
+          animate={{ scale: [1, 1.05, 1], rotate: [0, 180, 360] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          className="relative w-24 h-24 bg-emerald-50 rounded-3xl border border-emerald-100 flex items-center justify-center shadow-lg"
         >
-          <img src="https://i.ibb.co/HLT6ZFck/file-00000000a24c81f4a775591b812d2228.png" alt="MINING USDT" className="w-24 h-24 object-contain drop-shadow-2xl" />
+          <img 
+            src="https://i.ibb.co/HLT6ZFck/file-00000000a24c81f4a775591b812d2228.png" 
+            alt="MINING USDT" 
+            className="w-16 h-16 object-contain drop-shadow-md" 
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
         </motion.div>
+        <div className="space-y-1">
+          <span className="text-xs font-black text-slate-800 uppercase tracking-widest block">USDT MINER</span>
+          <span className="text-[10px] font-bold text-slate-400 animate-pulse block">Connecting to network...</span>
+        </div>
       </div>
     );
   }
@@ -89,7 +100,7 @@ function AppContent() {
               <ProfileTab />
             </motion.div>
           )}
-          {currentTab === 'admin' && user?.username?.toLowerCase() === 'sekanedr_is' && (
+          {currentTab === 'admin' && (
             <motion.div key="admin" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               <AdminTab />
             </motion.div>

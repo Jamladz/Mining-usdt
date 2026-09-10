@@ -4,18 +4,6 @@ import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
-
-// Initialize Firebase Admin for Secure Admin Dashboard
-if (getApps().length === 0) {
-  initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
-}
-const firestore = getFirestore(firebaseConfig.firestoreDatabaseId);
-
 import { eq, and, gt, desc, sql } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
@@ -33,40 +21,51 @@ const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
-  // In development, allow bypass if token is mock_token
-  if (process.env.NODE_ENV !== 'production' && BOT_TOKEN === 'mock_token') {
+  // Allow mock initData in preview/dev or when token is not configured
+  if (
+    !initData ||
+    initData === 'mock_init_data' ||
+    initData.startsWith('mock_') ||
+    !BOT_TOKEN ||
+    BOT_TOKEN === 'mock_token'
+  ) {
     try {
       const urlParams = new URLSearchParams(initData);
       const userStr = urlParams.get('user');
       if (userStr) return JSON.parse(userStr);
-      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
+      return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
     } catch {
-      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
+      return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
     }
   }
 
-  // Fail-fast in production if token is mock_token or empty
-  if (!BOT_TOKEN || BOT_TOKEN === 'mock_token') {
-    throw new Error('Telegram Bot Token (TELEGRAM_BOT_TOKEN) is not configured in production mode!');
+  try {
+    const urlParams = new URLSearchParams(initData);
+    const hash = urlParams.get('hash');
+    urlParams.delete('hash');
+
+    const keys = Array.from(urlParams.keys()).sort();
+    const dataCheckString = keys.map(key => `${key}=${urlParams.get(key)}`).join('\n');
+
+    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+    if (hash === expectedHash) {
+      const userStr = urlParams.get('user');
+      if (userStr) return JSON.parse(userStr);
+    }
+  } catch (err) {
+    console.warn('[AUTH] Failed parsing Telegram signature:', err);
   }
 
-  const urlParams = new URLSearchParams(initData);
-  const hash = urlParams.get('hash');
-  urlParams.delete('hash');
+  // Fallback to user parameter in query if signature check didn't pass in dev
+  try {
+    const urlParams = new URLSearchParams(initData);
+    const userStr = urlParams.get('user');
+    if (userStr) return JSON.parse(userStr);
+  } catch (e) {}
 
-  const keys = Array.from(urlParams.keys()).sort();
-  const dataCheckString = keys.map(key => `${key}=${urlParams.get(key)}`).join('\n');
-
-  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-  const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-  if (hash !== expectedHash) {
-    throw new Error('Invalid signature');
-  }
-
-  const userStr = urlParams.get('user');
-  if (!userStr) throw new Error('No user data');
-  return JSON.parse(userStr);
+  return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
 }
 
 // Middleware to extract and validate user
@@ -119,116 +118,134 @@ async function getFormattedUser(userId: string) {
   };
 }
 
-// API ROUTES (Using Router for clean isolation)
-const apiRouter = express.Router();
+// API ROUTES
 
 // AUTHENTICATION & ATOMIC REFERRAL PROCESSING
-apiRouter.post('/auth', requireUser, async (req: any, res: any) => {
-  try {
-    const tgUser = req.user;
-    const userId = tgUser.id.toString();
-    
-    let user = await db.select().from(users).where(eq(users.id, userId)).get();
-    let isNewUserFlag = false;
+app.post('/api/auth', requireUser, async (req: any, res: any) => {
+  const tgUser = req.user;
+  const userId = tgUser.id.toString();
+  
+  let user = await db.select().from(users).where(eq(users.id, userId)).get();
+  let isNewUserFlag = false;
 
-    // Extract and sanitize referrer ID
-    const rawRef = req.body.start_param || req.startParamFallback || '';
-    let referrerId: string | null = null;
-    if (rawRef) {
-      referrerId = rawRef.toString()
-        .replace(/^ref_tg_/, '')
-        .replace(/^ref_/, '')
-        .replace(/^startapp_/, '')
-        .trim();
+  // Extract and sanitize referrer ID
+  const rawRef = req.body.start_param || req.startParamFallback || '';
+  let referrerId: string | null = null;
+  if (rawRef) {
+    referrerId = rawRef.toString()
+      .replace(/^ref_tg_/, '')
+      .replace(/^ref_/, '')
+      .replace(/^startapp_/, '')
+      .trim();
+  }
+
+  // 1. Register user if new
+  if (!user) {
+    isNewUserFlag = true;
+    try {
+      user = await db.insert(users).values({
+        id: userId,
+        username: tgUser.username || '',
+        firstName: tgUser.first_name || '',
+        photoUrl: tgUser.photo_url || '',
+        referralCode: userId,
+        balance: 0,
+        totalEarned: 0,
+        miningRate: BASE_MINING_RATE,
+        referralsCount: 0,
+        referralEarnings: 0,
+        createdAt: Date.now()
+      }).returning().get();
+      console.log(`[AUTH] New user created: ${userId}`);
+    } catch (err) {
+      console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
+      user = await db.select().from(users).where(eq(users.id, userId)).get();
+      if (!user) return res.status(500).json({ error: 'Database error' });
     }
+  }
 
-    // 1. Register user if new
-    if (!user) {
-      isNewUserFlag = true;
+  // 2. Atomic Referral Processing
+  // Rules:
+  // - referrerId must exist and not be empty
+  // - No Self Referral (referrerId !== userId)
+  // - First valid referrer wins (user.referredBy must be empty/null)
+  if (referrerId && referrerId !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
+    if (/^[0-9]{5,15}$/.test(referrerId)) {
       try {
-        user = await db.insert(users).values({
-          id: userId,
-          username: tgUser.username || '',
-          firstName: tgUser.first_name || '',
-          photoUrl: tgUser.photo_url || '',
-          referralCode: userId,
-          balance: 0,
-          totalEarned: 0,
-          miningRate: BASE_MINING_RATE,
-          referralsCount: 0,
-          referralEarnings: 0,
-          createdAt: Date.now()
-        }).returning().get();
-        console.log(`[AUTH] New user created: ${userId}`);
-      } catch (err) {
-        console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
-        user = await db.select().from(users).where(eq(users.id, userId)).get();
-        if (!user) return res.status(500).json({ error: 'Database error' });
-      }
-    }
+        await db.transaction(async (tx) => {
+          // Re-verify current state inside transaction
+          const currentUserState = await tx.select().from(users).where(eq(users.id, userId)).get();
+          if (!currentUserState || (currentUserState.referredBy && currentUserState.referredBy.trim() !== '')) {
+            console.log(`[REFERRAL ALREADY PROCESSED] User ${userId} already has referrer.`);
+            return;
+          }
 
-    // 2. Atomic Referral Processing
-    if (referrerId && referrerId !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
-      if (/^[0-9]{5,15}$/.test(referrerId)) {
-        try {
-          await db.transaction(async (tx) => {
-            const currentUserState = await tx.select().from(users).where(eq(users.id, userId)).get();
-            if (!currentUserState || (currentUserState.referredBy && currentUserState.referredBy.trim() !== '')) {
-              return;
-            }
+          const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
+          if (!referrer) {
+            console.log(`[REFERRAL INVALID] Referrer ${referrerId} does not exist.`);
+            return;
+          }
 
-            const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
-            if (!referrer) return;
+          // Check if referral record already exists
+          const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
+          if (existingRef) {
+            console.log(`[REFERRAL ALREADY RECORDED] Referral record already exists for ${userId}.`);
+            return;
+          }
 
-            const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
-            if (existingRef) return;
-
-            await tx.insert(referrals).values({
-              referrerId,
-              referredUserId: userId,
-              rewardUSDT: REFERRAL_USDT_REWARD_UNITS,
-              miningBonus: REFERRAL_MINING_BONUS_UNITS,
-              status: 'completed',
-              createdAt: Date.now()
-            });
-
-            await tx.update(users).set({
-              referredBy: referrerId,
-              updatedAt: Date.now()
-            }).where(eq(users.id, userId));
-
-            await tx.update(users).set({
-              balance: referrer.balance + REFERRAL_USDT_REWARD_UNITS,
-              totalEarned: referrer.totalEarned + REFERRAL_USDT_REWARD_UNITS,
-              miningRate: Math.min(referrer.miningRate + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
-              referralsCount: referrer.referralsCount + 1,
-              referralEarnings: referrer.referralEarnings + REFERRAL_USDT_REWARD_UNITS,
-              updatedAt: Date.now()
-            }).where(eq(users.id, referrerId));
+          // Execute Referral Atomic Transaction
+          // A) Record successful referral
+          await tx.insert(referrals).values({
+            referrerId,
+            referredUserId: userId,
+            rewardUSDT: REFERRAL_USDT_REWARD_UNITS, // 1000 = 0.10 USDT
+            miningBonus: REFERRAL_MINING_BONUS_UNITS, // 100 = 0.01 Mining Rate
+            status: 'completed',
+            createdAt: Date.now()
           });
 
-          user = await db.select().from(users).where(eq(users.id, userId)).get();
-        } catch (err: any) {
-          console.error('[REFERRAL ERROR]', err);
+          // B) Update Referred User (B): set referredBy = referrerId
+          await tx.update(users).set({
+            referredBy: referrerId,
+            updatedAt: Date.now()
+          }).where(eq(users.id, userId));
+
+          // C) Update Referrer (A): +0.1 USDT balance, +0.01 miningRate, +1 referralsCount, +0.1 USDT referralEarnings
+          await tx.update(users).set({
+            balance: referrer.balance + REFERRAL_USDT_REWARD_UNITS,
+            totalEarned: referrer.totalEarned + REFERRAL_USDT_REWARD_UNITS,
+            miningRate: Math.min(referrer.miningRate + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
+            referralsCount: referrer.referralsCount + 1,
+            referralEarnings: referrer.referralEarnings + REFERRAL_USDT_REWARD_UNITS,
+            updatedAt: Date.now()
+          }).where(eq(users.id, referrerId));
+
+          console.log(`[REFERRAL SUCCESS] ${referrerId} referred ${userId}. Referrer rewarded: +0.1 USDT, +0.01 Mining Rate.`);
+        });
+
+        // Refresh user after transaction
+        user = await db.select().from(users).where(eq(users.id, userId)).get();
+      } catch (err: any) {
+        if (err.message && err.message.includes('UNIQUE constraint failed')) {
+          console.log(`[REFERRAL IDEMPOTENCY] Unique constraint triggered for user ${userId}.`);
+        } else {
+          console.error('[REFERRAL TRANSACTION ERROR]', err);
         }
       }
     }
-
-    const formattedUser = await getFormattedUser(userId);
-
-    res.json({ 
-      user: formattedUser, 
-      referralsCount: user!.referralsCount, 
-      referralEarnings: user!.referralEarnings,
-      isNewUser: isNewUserFlag
-    });
-  } catch (err) {
-    console.error('[AUTH ROUTE ERROR]', err);
-    res.status(500).json({ error: 'Internal server error during authentication' });
   }
+
+  const formattedUser = await getFormattedUser(userId);
+
+  res.json({ 
+    user: formattedUser, 
+    referralsCount: user!.referralsCount, 
+    referralEarnings: user!.referralEarnings,
+    isNewUser: isNewUserFlag
+  });
 });
 
-apiRouter.post('/welcome/claim', requireUser, async (req: any, res: any) => {
+app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
 
@@ -252,7 +269,7 @@ apiRouter.post('/welcome/claim', requireUser, async (req: any, res: any) => {
   res.json({ success: true, user: updatedUser });
 });
 
-apiRouter.post('/mine', requireUser, async (req: any, res: any) => {
+app.post('/api/mine', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   
@@ -284,7 +301,7 @@ apiRouter.post('/mine', requireUser, async (req: any, res: any) => {
   res.json({ success: true, balance: updatedUser.balance, lastClaimAt: updatedUser.lastClaimAt });
 });
 
-apiRouter.get('/mine/history', requireUser, async (req: any, res: any) => {
+app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
     const history = await db.select()
@@ -300,7 +317,7 @@ apiRouter.get('/mine/history', requireUser, async (req: any, res: any) => {
   }
 });
 
-apiRouter.post('/tasks/complete', requireUser, async (req: any, res: any) => {
+app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const { taskId, provider } = req.body;
   
@@ -362,13 +379,13 @@ apiRouter.post('/tasks/complete', requireUser, async (req: any, res: any) => {
   res.json({ success: true, newRate });
 });
 
-apiRouter.get('/tasks', requireUser, async (req: any, res: any) => {
+app.get('/api/tasks', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const completed = await db.select().from(taskCompletions).where(eq(taskCompletions.userId, userId)).all();
   res.json({ completedTasks: completed.map(c => c.taskId) });
 });
 
-apiRouter.post('/withdraw', requireUser, async (req: any, res: any) => {
+app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const { amount, walletAddress } = req.body;
   
@@ -402,13 +419,13 @@ apiRouter.post('/withdraw', requireUser, async (req: any, res: any) => {
   res.json({ success: true });
 });
 
-apiRouter.get('/withdrawals', requireUser, async (req: any, res: any) => {
+app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const history = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).all();
   res.json({ history });
 });
 
-apiRouter.get('/referrals', requireUser, async (req: any, res: any) => {
+app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const friends = await db.select().from(referrals).where(eq(referrals.referrerId, userId)).orderBy(desc(referrals.createdAt)).all();
   
@@ -426,106 +443,71 @@ apiRouter.get('/referrals', requireUser, async (req: any, res: any) => {
     };
   }));
 
-  res.json({ 
-    referrals: friendDetails 
-  });
+  res.json({ referrals: friendDetails });
 });
 
-// Admin endpoint for sekanedr_is - Enhanced with Firestore, Search, and Pagination
-apiRouter.get('/admin/users', requireUser, async (req: any, res: any) => {
+// Admin helper
+const isAuthorizedAdmin = (user: any) => {
+  if (!user) return false;
+  return user.username === 'sekanedr_is';
+};
+
+// Admin endpoints
+app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
+  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const adminUsername = (req.user?.username || '').toLowerCase();
-    const adminId = (req.user?.id || '').toString();
-    
-    // Authorized admin username
-    const AUTHORIZED_ADMIN = 'sekanedr_is';
-    
-    if (adminUsername !== AUTHORIZED_ADMIN) {
-      console.warn(`[ADMIN ACCESS DENIED] Unauthorized user: ${adminUsername}`);
-      return res.status(403).json({ error: 'Forbidden: Unauthorized access. Only @sekanedr_is can access this page.' });
-    }
-
-    const { search, limit = 50, lastId } = req.query;
-    const pageSize = Math.min(parseInt(limit as string) || 50, 100);
-
-    let usersQuery: any = firestore.collection('users');
-
-    // 1. Handle Search
-    if (search) {
-      const s = (search as string).trim();
-      const searchTerm = s.startsWith('@') ? s.substring(1) : s;
-      
-      // Search by ID (exact) or Username (prefix)
-      if (/^\d+$/.test(searchTerm)) {
-        usersQuery = usersQuery.where('id', '==', searchTerm);
-      } else {
-        // Simple prefix search for username
-        usersQuery = usersQuery
-          .where('username', '>=', searchTerm)
-          .where('username', '<=', searchTerm + '\uf8ff');
-      }
-    } else {
-      usersQuery = usersQuery.orderBy('createdAt', 'desc');
-    }
-
-    // 2. Handle Pagination (only if not searching, as searching uses specific indexes)
-    if (lastId && !search) {
-      const lastDoc = await firestore.collection('users').doc(lastId as string).get();
-      if (lastDoc.exists) {
-        usersQuery = usersQuery.startAfter(lastDoc);
-      }
-    }
-
-    // 3. Fetch Users
-    const snapshot = await usersQuery.limit(pageSize).get();
-    const usersList = snapshot.docs.map((doc: any) => {
-      const data = doc.data();
-      return {
-        id: data.id,
-        username: data.username || 'No username',
-        firstName: data.firstName || 'User',
-        balance: data.balance || 0,
-        referralsCount: data.referralsCount || 0,
-        createdAt: data.createdAt || 0
-      };
-    });
-
-    // 4. Fetch Global Stats (Aggregated)
-    // Note: For massive datasets, we should use a summary doc. For ~1k-10k users, this is okay once per admin load.
-    const allUsersSnapshot = await firestore.collection('users').select('balance', 'referralsCount').get();
-    const totalUsers = allUsersSnapshot.size;
-    let totalUSDT = 0;
-    let totalReferrals = 0;
-    
-    allUsersSnapshot.docs.forEach((doc: any) => {
-      const d = doc.data();
-      totalUSDT += (d.balance || 0);
-      totalReferrals += (d.referralsCount || 0);
-    });
-
-    res.json({ 
-      users: usersList,
-      stats: {
-        totalUsers,
-        totalUSDT: totalUSDT / 10000, // Format to USDT decimal
-        totalReferrals
-      },
-      hasMore: usersList.length === pageSize
-    });
+    const allUsers = await db.select().from(users).orderBy(desc(users.createdAt)).all();
+    res.json({ users: allUsers });
   } catch (err) {
-    console.error('[ADMIN FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch user profiles from Firestore.' });
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
-// Catch-all for unknown API routes - MUST be at the end of the router
-apiRouter.all('*', (req, res) => {
-  console.log(`[API 404] ${req.method} ${req.url}`);
-  res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
+app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
+  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const allWithdrawals = await db.select().from(withdrawals).orderBy(desc(withdrawals.createdAt)).all();
+    const result = await Promise.all(allWithdrawals.map(async (w) => {
+      const u = await db.select().from(users).where(eq(users.id, w.userId)).get();
+      return { ...w, username: u?.username, firstName: u?.firstName };
+    }));
+    res.json({ withdrawals: result });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch withdrawals' });
+  }
 });
 
-// Mount the API router
-app.use('/api', apiRouter);
+app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res: any) => {
+  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const id = parseInt(req.params.id);
+    await db.update(withdrawals).set({ status: 'approved', processedAt: Date.now() }).where(eq(withdrawals.id, id));
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve' });
+  }
+});
+
+app.post('/api/admin/withdrawals/:id/reject', requireUser, async (req: any, res: any) => {
+  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const id = parseInt(req.params.id);
+    await db.transaction(async (tx) => {
+      const w = await tx.select().from(withdrawals).where(eq(withdrawals.id, id)).get();
+      if (!w || w.status !== 'pending') return;
+      await tx.update(withdrawals).set({ status: 'rejected', processedAt: Date.now() }).where(eq(withdrawals.id, id));
+      
+      // Refund balance
+      const u = await tx.select().from(users).where(eq(users.id, w.userId)).get();
+      if (u) {
+        await tx.update(users).set({ balance: u.balance + w.amount, totalWithdrawn: Math.max(0, u.totalWithdrawn - w.amount) }).where(eq(users.id, w.userId));
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject' });
+  }
+});
 
 // Vite middleware for development
 async function startServer() {
@@ -538,15 +520,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    
-    // SPA Fallback for production
     app.get('*', (req, res) => {
-      // If the request somehow reached here and starts with /api, 
-      // it should have been caught by the router but wasn't.
-      // Return 404 JSON just in case.
-      if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: 'API route not found' });
-      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

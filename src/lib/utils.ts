@@ -18,3 +18,8 @@ export const parseUSDT = (value: string | number) => {
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+export const isAdminUser = (user: { username?: string } | null | undefined): boolean => {
+  if (!user) return false;
+  return user.username === 'sekanedr_is';
+};
