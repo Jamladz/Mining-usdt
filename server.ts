@@ -4,6 +4,18 @@ import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
+
+// Initialize Firebase Admin for Secure Admin Dashboard
+if (getApps().length === 0) {
+  initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
+}
+const firestore = getFirestore(firebaseConfig.firestoreDatabaseId);
+
 import { eq, and, gt, desc, sql } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
@@ -419,23 +431,90 @@ apiRouter.get('/referrals', requireUser, async (req: any, res: any) => {
   });
 });
 
-// Admin endpoint for sekanedr_is
+// Admin endpoint for sekanedr_is - Enhanced with Firestore, Search, and Pagination
 apiRouter.get('/admin/users', requireUser, async (req: any, res: any) => {
   try {
     const adminUsername = (req.user?.username || '').toLowerCase();
-    console.log(`[ADMIN ACCESS ATTEMPT] User: ${adminUsername}`);
-
-    if (adminUsername !== 'sekanedr_is') {
+    const adminId = (req.user?.id || '').toString();
+    
+    // Authorized admin username
+    const AUTHORIZED_ADMIN = 'sekanedr_is';
+    
+    if (adminUsername !== AUTHORIZED_ADMIN) {
       console.warn(`[ADMIN ACCESS DENIED] Unauthorized user: ${adminUsername}`);
-      return res.status(403).json({ error: 'Forbidden: Unauthorized access. Only sekanedr_is can access this page.' });
+      return res.status(403).json({ error: 'Forbidden: Unauthorized access. Only @sekanedr_is can access this page.' });
     }
 
-    const allUsers = await db.select().from(users).orderBy(desc(users.createdAt)).all();
-    console.log(`[ADMIN ACCESS SUCCESS] Fetched ${allUsers.length} users.`);
-    res.json({ users: allUsers });
+    const { search, limit = 50, lastId } = req.query;
+    const pageSize = Math.min(parseInt(limit as string) || 50, 100);
+
+    let usersQuery: any = firestore.collection('users');
+
+    // 1. Handle Search
+    if (search) {
+      const s = (search as string).trim();
+      const searchTerm = s.startsWith('@') ? s.substring(1) : s;
+      
+      // Search by ID (exact) or Username (prefix)
+      if (/^\d+$/.test(searchTerm)) {
+        usersQuery = usersQuery.where('id', '==', searchTerm);
+      } else {
+        // Simple prefix search for username
+        usersQuery = usersQuery
+          .where('username', '>=', searchTerm)
+          .where('username', '<=', searchTerm + '\uf8ff');
+      }
+    } else {
+      usersQuery = usersQuery.orderBy('createdAt', 'desc');
+    }
+
+    // 2. Handle Pagination (only if not searching, as searching uses specific indexes)
+    if (lastId && !search) {
+      const lastDoc = await firestore.collection('users').doc(lastId as string).get();
+      if (lastDoc.exists) {
+        usersQuery = usersQuery.startAfter(lastDoc);
+      }
+    }
+
+    // 3. Fetch Users
+    const snapshot = await usersQuery.limit(pageSize).get();
+    const usersList = snapshot.docs.map((doc: any) => {
+      const data = doc.data();
+      return {
+        id: data.id,
+        username: data.username || 'No username',
+        firstName: data.firstName || 'User',
+        balance: data.balance || 0,
+        referralsCount: data.referralsCount || 0,
+        createdAt: data.createdAt || 0
+      };
+    });
+
+    // 4. Fetch Global Stats (Aggregated)
+    // Note: For massive datasets, we should use a summary doc. For ~1k-10k users, this is okay once per admin load.
+    const allUsersSnapshot = await firestore.collection('users').select('balance', 'referralsCount').get();
+    const totalUsers = allUsersSnapshot.size;
+    let totalUSDT = 0;
+    let totalReferrals = 0;
+    
+    allUsersSnapshot.docs.forEach((doc: any) => {
+      const d = doc.data();
+      totalUSDT += (d.balance || 0);
+      totalReferrals += (d.referralsCount || 0);
+    });
+
+    res.json({ 
+      users: usersList,
+      stats: {
+        totalUsers,
+        totalUSDT: totalUSDT / 10000, // Format to USDT decimal
+        totalReferrals
+      },
+      hasMore: usersList.length === pageSize
+    });
   } catch (err) {
     console.error('[ADMIN FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch user profiles. Please check server logs.' });
+    res.status(500).json({ error: 'Failed to fetch user profiles from Firestore.' });
   }
 });
 
