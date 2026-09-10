@@ -289,12 +289,24 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
       lastClaimAt: now,
     }).where(eq(users.id, userId));
 
-    await tx.insert(miningClaims).values({
+    const inserted = await tx.insert(miningClaims).values({
       userId,
       amount: reward,
       claimedAt: now,
       nextClaimAt: now + CLAIM_COOLDOWN_MS,
-    });
+    }).returning().get();
+
+    try {
+      await addDoc(collection(firebaseDb, 'mining_claims'), {
+        localId: inserted.id,
+        userId,
+        amount: reward,
+        claimedAt: now,
+        nextClaimAt: now + CLAIM_COOLDOWN_MS
+      });
+    } catch(err) {
+      console.error('Failed to sync mining claim to Firebase', err);
+    }
   });
 
   const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -304,13 +316,22 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
 app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
-    const history = await db.select()
-      .from(miningClaims)
-      .where(eq(miningClaims.userId, userId))
-      .orderBy(desc(miningClaims.claimedAt))
-      .limit(30)
-      .all();
-    res.json({ history });
+    const claimsRef = collection(firebaseDb, 'mining_claims');
+    const q = query(claimsRef, where('userId', '==', userId));
+    const claimsSnap = await getDocs(q);
+    
+    const history: any[] = [];
+    claimsSnap.forEach(docSnap => {
+      history.push({ ...docSnap.data(), id: docSnap.id });
+    });
+    
+    // Sort descending by claimedAt
+    history.sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0));
+    
+    // Limit to 30
+    const limitedHistory = history.slice(0, 30);
+    
+    res.json({ history: limitedHistory });
   } catch (err) {
     console.error('[MINING HISTORY ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch mining history' });
