@@ -90,6 +90,17 @@ export function AdminTab() {
 
   const formatUSDT = (units: number) => (units / 10000).toFixed(4);
 
+  const getJoinedDate = (u: any) => {
+    if (u.createdAt) return new Date(u.createdAt).toLocaleDateString();
+    if (u.lastActive && u.lastActive.seconds) return new Date(u.lastActive.seconds * 1000).toLocaleDateString();
+    return 'Unknown';
+  };
+
+  const getBalance = (u: any) => {
+    const balance = u.balance !== undefined ? u.balance : u.totalEarned || 0;
+    return formatUSDT(balance);
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-50 text-slate-900 pb-24">
       {/* Header */}
@@ -203,12 +214,12 @@ export function AdminTab() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                      <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">Balance</div>
-                      <div className="text-sm font-medium text-slate-900">{formatUSDT(u.balance)} USDT</div>
+                      <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">Balance/Earned</div>
+                      <div className="text-sm font-medium text-slate-900">{getBalance(u)} USDT</div>
                     </div>
                     <div className="bg-slate-50 p-2 rounded border border-slate-100">
-                      <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">Joined</div>
-                      <div className="text-xs text-slate-600">{new Date(u.createdAt).toLocaleDateString()}</div>
+                      <div className="text-[10px] uppercase text-slate-400 font-bold mb-1">Joined/Active</div>
+                      <div className="text-xs text-slate-600">{getJoinedDate(u)}</div>
                     </div>
                   </div>
                 </div>

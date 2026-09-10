@@ -452,13 +452,26 @@ const isAuthorizedAdmin = (user: any) => {
   return user.username === 'sekanedr_is';
 };
 
+import { getFirestore, collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { db as firebaseDb } from './src/lib/firebase.js';
+
 // Admin endpoints
 app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const allUsers = await db.select().from(users).orderBy(desc(users.createdAt)).all();
+    // Fetch users from Firebase to include all historical users even if local DB resets
+    const usersRef = collection(firebaseDb, 'users');
+    const q = query(usersRef, orderBy('lastActive', 'desc'));
+    const querySnapshot = await getDocs(q);
+    
+    const allUsers: any[] = [];
+    querySnapshot.forEach((doc) => {
+      allUsers.push({ id: doc.id, ...doc.data() });
+    });
+    
     res.json({ users: allUsers });
   } catch (err) {
+    console.error('[ADMIN FETCH ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
@@ -467,12 +480,23 @@ app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
     const allWithdrawals = await db.select().from(withdrawals).orderBy(desc(withdrawals.createdAt)).all();
+    
+    // Create a map to fetch users efficiently, fallback to Firebase if missing in local db
+    const usersRef = collection(firebaseDb, 'users');
+    const querySnapshot = await getDocs(usersRef);
+    const firebaseUsersMap = new Map();
+    querySnapshot.forEach(doc => {
+      firebaseUsersMap.set(doc.id, doc.data());
+    });
+    
     const result = await Promise.all(allWithdrawals.map(async (w) => {
-      const u = await db.select().from(users).where(eq(users.id, w.userId)).get();
+      let u = await db.select().from(users).where(eq(users.id, w.userId)).get();
+      if (!u) u = firebaseUsersMap.get(w.userId);
       return { ...w, username: u?.username, firstName: u?.firstName };
     }));
     res.json({ withdrawals: result });
   } catch (err) {
+    console.error('[ADMIN FETCH ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch withdrawals' });
   }
 });

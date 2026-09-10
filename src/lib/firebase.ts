@@ -20,6 +20,7 @@ export async function syncUserToFirebase(user: any) {
       photoUrl: user.photoUrl || '',
       referralsCount: user.referralsCount || 0,
       totalEarned: user.totalEarned || 0,
+      balance: user.balance || 0,
       miningRate: user.miningRate || 0,
       lastActive: serverTimestamp()
     }, { merge: true });
