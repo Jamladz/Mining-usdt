@@ -25,11 +25,22 @@ interface WithdrawalData {
 }
 
 export function AdminTab() {
-  const { fetchWithAuth } = useApp();
+  const { initData } = useApp();
   const [users, setUsers] = useState<UserData[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalData[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'users' | 'withdrawals'>('withdrawals');
+
+  const fetchWithAuth = (url: string, options: any = {}) => {
+    return fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': initData || '',
+        ...(options.headers || {})
+      }
+    });
+  };
 
   const loadData = async () => {
     setLoading(true);
