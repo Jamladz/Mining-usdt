@@ -436,17 +436,17 @@ app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
     const withdrawalsRef = collection(firebaseDb, 'withdrawals');
-    const q = query(withdrawalsRef, orderBy('createdAt', 'desc'));
+    const q = query(withdrawalsRef, where('userId', '==', userId));
     const wSnap = await getDocs(q);
     const history: any[] = [];
     wSnap.forEach(docSnap => {
-      const w = docSnap.data();
-      if (w.userId === userId) {
-        history.push({ ...w, id: docSnap.id });
-      }
+      history.push({ ...docSnap.data(), id: docSnap.id });
     });
+    // Sort in memory
+    history.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     res.json({ history });
   } catch (err) {
+    console.error('[WITHDRAWAL FETCH ERROR]', err);
     res.status(500).json({ error: 'Failed' });
   }
 });
@@ -480,7 +480,7 @@ const isAuthorizedAdmin = (user: any) => {
   return username === 'sekanedr_is' || username === 'dev_user' || id === '12345';
 };
 
-import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc, where } from 'firebase/firestore';
 import { db as firebaseDb } from './src/lib/firebase.js';
 
 // Admin endpoints
@@ -489,12 +489,18 @@ app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
   try {
     // Fetch users from Firebase to include all historical users even if local DB resets
     const usersRef = collection(firebaseDb, 'users');
-    const q = query(usersRef, orderBy('lastActive', 'desc'));
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await getDocs(usersRef);
     
     const allUsers: any[] = [];
     querySnapshot.forEach((doc) => {
       allUsers.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Sort descending by lastActive
+    allUsers.sort((a, b) => {
+      const timeA = a.lastActive?.seconds || 0;
+      const timeB = b.lastActive?.seconds || 0;
+      return timeB - timeA;
     });
     
     res.json({ users: allUsers });
@@ -517,8 +523,7 @@ app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
     
     // Fetch withdrawals from Firebase
     const withdrawalsRef = collection(firebaseDb, 'withdrawals');
-    const q = query(withdrawalsRef, orderBy('createdAt', 'desc'));
-    const withdrawalSnapshot = await getDocs(q);
+    const withdrawalSnapshot = await getDocs(withdrawalsRef);
     
     const result: any[] = [];
     withdrawalSnapshot.forEach((docSnap) => {
@@ -538,10 +543,13 @@ app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
       });
     });
     
+    // Sort descending by createdAt
+    result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    
     res.json({ withdrawals: result });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[ADMIN FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch withdrawals' });
+    res.status(500).json({ error: 'Failed to fetch withdrawals', details: err.message || err.toString() });
   }
 });
 
