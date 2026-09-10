@@ -141,26 +141,52 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
   // 1. Register user if new
   if (!user) {
-    isNewUserFlag = true;
+    // A) Try to restore from Firebase first (Hydration for ephemeral SQLite)
     try {
-      user = await db.insert(users).values({
-        id: userId,
-        username: tgUser.username || '',
-        firstName: tgUser.first_name || '',
-        photoUrl: tgUser.photo_url || '',
-        referralCode: userId,
-        balance: 0,
-        totalEarned: 0,
-        miningRate: BASE_MINING_RATE,
-        referralsCount: 0,
-        referralEarnings: 0,
-        createdAt: Date.now()
-      }).returning().get();
-      console.log(`[AUTH] New user created: ${userId}`);
-    } catch (err) {
-      console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
-      user = await db.select().from(users).where(eq(users.id, userId)).get();
-      if (!user) return res.status(500).json({ error: 'Database error' });
+      const fbUser = await lookupUserByTelegramId(userId);
+      if (fbUser) {
+        user = await db.insert(users).values({
+          id: userId,
+          username: fbUser.username || tgUser.username || '',
+          firstName: fbUser.firstName || tgUser.first_name || '',
+          photoUrl: fbUser.photoUrl || tgUser.photo_url || '',
+          referralCode: userId,
+          balance: fbUser.balance || 0,
+          totalEarned: fbUser.totalEarned || 0,
+          miningRate: fbUser.miningRate || BASE_MINING_RATE,
+          referralsCount: fbUser.referralsCount || 0,
+          referralEarnings: fbUser.referralEarnings || 0,
+          createdAt: fbUser.createdAt || Date.now()
+        }).returning().get();
+        console.log(`[AUTH] Hydrated user from Firebase: ${userId}`);
+      }
+    } catch (e) {
+      console.warn(`[AUTH] Failed to hydrate user ${userId} from Firebase`, e);
+    }
+
+    // B) If still no user, create a completely new one
+    if (!user) {
+      isNewUserFlag = true;
+      try {
+        user = await db.insert(users).values({
+          id: userId,
+          username: tgUser.username || '',
+          firstName: tgUser.first_name || '',
+          photoUrl: tgUser.photo_url || '',
+          referralCode: userId,
+          balance: 0,
+          totalEarned: 0,
+          miningRate: BASE_MINING_RATE,
+          referralsCount: 0,
+          referralEarnings: 0,
+          createdAt: Date.now()
+        }).returning().get();
+        console.log(`[AUTH] New user created: ${userId}`);
+      } catch (err) {
+        console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
+        user = await db.select().from(users).where(eq(users.id, userId)).get();
+        if (!user) return res.status(500).json({ error: 'Database error' });
+      }
     }
   }
 
@@ -289,12 +315,24 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
       lastClaimAt: now,
     }).where(eq(users.id, userId));
 
-    await tx.insert(miningClaims).values({
+    const inserted = await tx.insert(miningClaims).values({
       userId,
       amount: reward,
       claimedAt: now,
       nextClaimAt: now + CLAIM_COOLDOWN_MS,
-    });
+    }).returning().get();
+
+    try {
+      await addDoc(collection(firebaseDb, 'mining_claims'), {
+        localId: inserted.id,
+        userId,
+        amount: reward,
+        claimedAt: now,
+        nextClaimAt: now + CLAIM_COOLDOWN_MS
+      });
+    } catch(err) {
+      console.error('Failed to sync mining claim to Firebase', err);
+    }
   });
 
   const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -304,13 +342,22 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
 app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
-    const history = await db.select()
-      .from(miningClaims)
-      .where(eq(miningClaims.userId, userId))
-      .orderBy(desc(miningClaims.claimedAt))
-      .limit(30)
-      .all();
-    res.json({ history });
+    const claimsRef = collection(firebaseDb, 'mining_claims');
+    const q = query(claimsRef, where('userId', '==', userId));
+    const claimsSnap = await getDocs(q);
+    
+    const history: any[] = [];
+    claimsSnap.forEach(docSnap => {
+      history.push({ ...docSnap.data(), id: docSnap.id });
+    });
+    
+    // Sort descending by claimedAt
+    history.sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0));
+    
+    // Limit to 30
+    const limitedHistory = history.slice(0, 30);
+    
+    res.json({ history: limitedHistory });
   } catch (err) {
     console.error('[MINING HISTORY ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch mining history' });
@@ -481,7 +528,7 @@ const isAuthorizedAdmin = (user: any) => {
 };
 
 import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc, where } from 'firebase/firestore';
-import { db as firebaseDb } from './src/lib/firebase.js';
+import { db as firebaseDb, lookupUserByTelegramId } from './src/lib/firebase.js';
 
 // Admin endpoints
 app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
