@@ -103,27 +103,64 @@ export const referralService = {
 
     if (!referrerId) return null;
 
+    // 1. Prevent self-referral
     if (referrerId === currentUserId) {
       return { success: false, message: 'You cannot refer yourself!' };
     }
 
     try {
-      const initData = window.Telegram?.WebApp?.initData || 'mock_init_data';
-      const res = await fetch('/api/referrals/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': initData
-        },
-        body: JSON.stringify({ start_param: startParam })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return { success: false, message: data.error || 'Failed to process referral' };
+      // 2. Prevent duplicate referrals (referred only once)
+      const refDocRef = doc(db, 'referrals', currentUserId);
+      const refDocSnap = await getDoc(refDocRef);
+      if (refDocSnap.exists()) {
+        return { success: false, message: 'You have already been referred!' };
       }
-      return data;
+
+      // 3. Register the referral record in Firestore باسم referrals
+      await setDoc(refDocRef, {
+         id: currentUserId,
+         referrerId: referrerId,
+         referredUserId: currentUserId,
+         referredName: currentUserName,
+         referredUsername: currentUserUsername || '',
+         rewardUSDT: 1000, // 0.10 USDT
+         miningBonus: 100, // +0.01 Rate boost
+         createdAt: Date.now()
+      });
+
+      // 4. Update Referrer Profile in Firestore
+      const referrerDocRef = doc(db, 'users', referrerId);
+      const referrerSnap = await getDoc(referrerDocRef);
+      let referrerName = 'your friend';
+
+      if (referrerSnap.exists()) {
+        const referrerData = referrerSnap.data();
+        referrerName = referrerData.firstName || referrerData.username || 'your friend';
+
+        await updateDoc(referrerDocRef, {
+          referralsCount: increment(1),
+          balance: increment(1000), // +0.10 USDT balance
+          referralEarnings: increment(1000), // +0.10 USDT earnings
+          miningRate: increment(100) // +0.01 Boost
+        });
+      } else {
+        await setDoc(referrerDocRef, {
+          id: referrerId,
+          referralsCount: 1,
+          balance: 1000,
+          referralEarnings: 1000,
+          miningRate: 1100, // base 1000 + 100 boost
+          createdAt: Date.now()
+        }, { merge: true });
+      }
+
+      return {
+        success: true,
+        rewardAmount: 1000, // 0.10 USDT
+        referrerName
+      };
     } catch (err) {
-      console.error('[referralService] Failed to process referral via backend:', err);
+      console.error('[referralService] Failed to process referral:', err);
       return { success: false, message: 'Failed to register referral relationship' };
     }
   },
@@ -133,28 +170,58 @@ export const referralService = {
    */
   async claimMilestone(userId: string, target: number): Promise<{ success: boolean; rewardUSDT: number; rewardMiningRate: number; message: string }> {
     try {
-      const initData = window.Telegram?.WebApp?.initData || 'mock_init_data';
-      const res = await fetch('/api/referrals/claim-milestone', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': initData
-        },
-        body: JSON.stringify({ target })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: data.error || 'Failed to claim milestone' };
+      const userDocRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userDocRef);
+      if (!userSnap.exists()) {
+        return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'User profile not found' };
       }
+
+      const userData = userSnap.data();
+      const claimed = userData.claimedMilestones || [];
+
+      if (claimed.includes(target)) {
+        return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'You have already claimed this milestone reward!' };
+      }
+
+      // Query live referrals collection to get the most accurate, real-time count
+      let realCount = 0;
+      try {
+        const q = query(
+          collection(db, 'referrals'),
+          where('referrerId', '==', userId)
+        );
+        const querySnapshot = await getDocs(q);
+        realCount = querySnapshot.size;
+      } catch (e) {
+        console.warn('Failed to fetch live referrals count, falling back to profile field', e);
+      }
+
+      const referralsCount = Math.max(userData.referralsCount || 0, realCount);
+      if (referralsCount < target) {
+        return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'You have not reached this target yet!' };
+      }
+
+      const milestone = REFERRAL_MILESTONES.find(m => m.target === target);
+      if (!milestone) {
+        return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'Invalid milestone stage!' };
+      }
+
+      // Update the user's claimed milestones, balance, and miningRate
+      await updateDoc(userDocRef, {
+        claimedMilestones: [...claimed, target],
+        balance: increment(milestone.rewardUSDTUnits),
+        miningRate: increment(milestone.rewardMiningUnits)
+      });
+
       return {
         success: true,
-        rewardUSDT: data.rewardUSDT,
-        rewardMiningRate: data.rewardMiningRate,
-        message: data.message
+        rewardUSDT: milestone.rewardUSDTUnits,
+        rewardMiningRate: milestone.rewardMiningUnits,
+        message: `Milestone Claimed! Received +${(milestone.rewardUSDTUnits / 10000).toFixed(2)} USDT and +${(milestone.rewardMiningUnits / 10000).toFixed(2)}/24h Boost!`
       };
     } catch (err) {
-      console.error(err);
-      return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'Failed to claim milestone' };
+      console.error('[referralService] Error claiming milestone:', err);
+      return { success: false, rewardUSDT: 0, rewardMiningRate: 0, message: 'Failed to claim milestone. Please try again later.' };
     }
   }
 };

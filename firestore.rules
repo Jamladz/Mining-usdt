@@ -5,25 +5,26 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
-    // Users collection: read-only from client-side
+    // Public users collection for Telegram ID search and profile synchronization
     match /users/{userId} {
+      // Read is open to allow searching by any Telegram user
       allow read: if true;
-      allow write: if false;
+      
+      // Write is allowed to synchronize their own Telegram Profile
+      allow create, update: if request.resource.data.id == userId;
     }
-    // Referrals collection: read-only from client-side
+    // Secure referrals collection
     match /referrals/{referralId} {
+      // Read is open to allow loading referral histories
       allow read: if true;
-      allow write: if false;
+      // Create is allowed if registering the referral mapping where the document ID is the referred user ID
+      allow create: if request.resource.data.referredUserId == referralId;
+      // Update and delete are forbidden as referral records are immutable
+      allow update, delete: if false;
     }
-    // Withdrawals collection: read-only from client-side
+    // Withdrawals collection
     match /withdrawals/{withdrawalId} {
-      allow read: if true;
-      allow write: if false;
-    }
-    // Mining claims collection: read-only from client-side
-    match /mining_claims/{claimId} {
-      allow read: if true;
-      allow write: if false;
+      allow read, write: if true;
     }
   }
 }

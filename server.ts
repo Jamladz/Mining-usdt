@@ -7,22 +7,6 @@ import { users, miningClaims, taskCompletions, withdrawals, referrals } from './
 import { eq, and, gt, desc, sql } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
-import { FieldValue } from 'firebase-admin/firestore';
-import { adminDb } from './src/lib/firebase-admin.js';
-import { lookupUserByTelegramId } from './src/lib/firebase.js';
-
-const REFERRAL_MILESTONES = [
-  { target: 3, rewardUSDTUnits: 3000, rewardMiningUnits: 100, description: 'Refer 3 friends and claim +0.30 USDT reward!' },
-  { target: 6, rewardUSDTUnits: 6000, rewardMiningUnits: 200, description: 'Refer 6 friends and claim +0.60 USDT reward!' },
-  { target: 9, rewardUSDTUnits: 9000, rewardMiningUnits: 300, description: 'Refer 9 friends and claim +0.90 USDT reward!' },
-  { target: 12, rewardUSDTUnits: 12000, rewardMiningUnits: 400, description: 'Refer 12 friends and claim +1.20 USDT reward!' },
-  { target: 15, rewardUSDTUnits: 15000, rewardMiningUnits: 500, description: 'Refer 15 friends and claim +1.50 USDT reward!' },
-  { target: 18, rewardUSDTUnits: 18000, rewardMiningUnits: 600, description: 'Refer 18 friends and claim +1.80 USDT reward!' },
-  { target: 21, rewardUSDTUnits: 21000, rewardMiningUnits: 700, description: 'Refer 21 friends and claim +2.10 USDT reward!' },
-  { target: 24, rewardUSDTUnits: 24000, rewardMiningUnits: 800, description: 'Refer 24 friends and claim +2.40 USDT reward!' },
-  { target: 27, rewardUSDTUnits: 27000, rewardMiningUnits: 900, description: 'Refer 27 friends and claim +2.70 USDT reward!' },
-  { target: 30, rewardUSDTUnits: 30000, rewardMiningUnits: 1000, description: 'Refer 30 friends and claim +3.00 USDT reward!' }
-];
 
 const app = express();
 app.use(express.json());
@@ -134,44 +118,6 @@ async function getFormattedUser(userId: string) {
   };
 }
 
-async function syncUserToFirestore(userId: string) {
-  try {
-    const user = await db.select().from(users).where(eq(users.id, userId)).get();
-    if (user) {
-      // Fetch claimed milestones from Firestore if they exist so we preserve them
-      let claimedMilestones: number[] = [];
-      try {
-        const docSnap = await adminDb.collection('users').doc(userId).get();
-        if (docSnap.exists) {
-          claimedMilestones = docSnap.data()?.claimedMilestones || [];
-        }
-      } catch (e) {
-        console.warn('Failed to read claimedMilestones during sync:', e);
-      }
-
-      await adminDb.collection('users').doc(userId).set({
-        id: userId,
-        username: user.username || '',
-        firstName: user.firstName || '',
-        photoUrl: user.photoUrl || '',
-        referralsCount: user.referralsCount || 0,
-        totalEarned: user.totalEarned || 0,
-        balance: user.balance || 0,
-        miningRate: user.miningRate || 0,
-        totalWithdrawn: user.totalWithdrawn || 0,
-        referralEarnings: user.referralEarnings || 0,
-        claimedWelcome: user.claimedWelcome || 0,
-        referredBy: user.referredBy || '',
-        claimedMilestones,
-        lastActive: FieldValue.serverTimestamp()
-      }, { merge: true });
-      console.log(`[FIREBASE] Authoritative profile sync for user: ${userId}`);
-    }
-  } catch (err) {
-    console.error(`[FIREBASE] Authoritative profile sync failed for ${userId}:`, err);
-  }
-}
-
 // API ROUTES
 
 // AUTHENTICATION & ATOMIC REFERRAL PROCESSING
@@ -195,52 +141,26 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
   // 1. Register user if new
   if (!user) {
-    // A) Try to restore from Firebase first (Hydration for ephemeral SQLite)
+    isNewUserFlag = true;
     try {
-      const fbUser = await lookupUserByTelegramId(userId);
-      if (fbUser) {
-        user = await db.insert(users).values({
-          id: userId,
-          username: fbUser.username || tgUser.username || '',
-          firstName: fbUser.firstName || tgUser.first_name || '',
-          photoUrl: fbUser.photoUrl || tgUser.photo_url || '',
-          referralCode: userId,
-          balance: fbUser.balance || 0,
-          totalEarned: fbUser.totalEarned || 0,
-          miningRate: fbUser.miningRate || BASE_MINING_RATE,
-          referralsCount: fbUser.referralsCount || 0,
-          referralEarnings: fbUser.referralEarnings || 0,
-          createdAt: fbUser.createdAt || Date.now()
-        }).returning().get();
-        console.log(`[AUTH] Hydrated user from Firebase: ${userId}`);
-      }
-    } catch (e) {
-      console.warn(`[AUTH] Failed to hydrate user ${userId} from Firebase`, e);
-    }
-
-    // B) If still no user, create a completely new one
-    if (!user) {
-      isNewUserFlag = true;
-      try {
-        user = await db.insert(users).values({
-          id: userId,
-          username: tgUser.username || '',
-          firstName: tgUser.first_name || '',
-          photoUrl: tgUser.photo_url || '',
-          referralCode: userId,
-          balance: 0,
-          totalEarned: 0,
-          miningRate: BASE_MINING_RATE,
-          referralsCount: 0,
-          referralEarnings: 0,
-          createdAt: Date.now()
-        }).returning().get();
-        console.log(`[AUTH] New user created: ${userId}`);
-      } catch (err) {
-        console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
-        user = await db.select().from(users).where(eq(users.id, userId)).get();
-        if (!user) return res.status(500).json({ error: 'Database error' });
-      }
+      user = await db.insert(users).values({
+        id: userId,
+        username: tgUser.username || '',
+        firstName: tgUser.first_name || '',
+        photoUrl: tgUser.photo_url || '',
+        referralCode: userId,
+        balance: 0,
+        totalEarned: 0,
+        miningRate: BASE_MINING_RATE,
+        referralsCount: 0,
+        referralEarnings: 0,
+        createdAt: Date.now()
+      }).returning().get();
+      console.log(`[AUTH] New user created: ${userId}`);
+    } catch (err) {
+      console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
+      user = await db.select().from(users).where(eq(users.id, userId)).get();
+      if (!user) return res.status(500).json({ error: 'Database error' });
     }
   }
 
@@ -315,15 +235,6 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     }
   }
 
-  try {
-    await syncUserToFirestore(userId);
-    if (referrerId && referrerId !== userId) {
-      await syncUserToFirestore(referrerId);
-    }
-  } catch (err) {
-    console.warn('[AUTH] Sync to Firestore failed:', err);
-  }
-
   const formattedUser = await getFormattedUser(userId);
 
   res.json({ 
@@ -354,8 +265,6 @@ app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
     }).where(eq(users.id, userId));
   });
 
-  await syncUserToFirestore(userId);
-
   const updatedUser = await getFormattedUser(userId);
   res.json({ success: true, user: updatedUser });
 });
@@ -380,27 +289,13 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
       lastClaimAt: now,
     }).where(eq(users.id, userId));
 
-    const inserted = await tx.insert(miningClaims).values({
+    await tx.insert(miningClaims).values({
       userId,
       amount: reward,
       claimedAt: now,
       nextClaimAt: now + CLAIM_COOLDOWN_MS,
-    }).returning().get();
-
-    try {
-      await adminDb.collection('mining_claims').add({
-        localId: inserted.id,
-        userId,
-        amount: reward,
-        claimedAt: now,
-        nextClaimAt: now + CLAIM_COOLDOWN_MS
-      });
-    } catch(err) {
-      console.error('Failed to sync mining claim to Firebase', err);
-    }
+    });
   });
-
-  await syncUserToFirestore(userId);
 
   const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
   res.json({ success: true, balance: updatedUser.balance, lastClaimAt: updatedUser.lastClaimAt });
@@ -409,20 +304,13 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
 app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
-    const claimsSnap = await adminDb.collection('mining_claims').where('userId', '==', userId).get();
-    
-    const history: any[] = [];
-    claimsSnap.forEach(docSnap => {
-      history.push({ ...docSnap.data(), id: docSnap.id });
-    });
-    
-    // Sort descending by claimedAt
-    history.sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0));
-    
-    // Limit to 30
-    const limitedHistory = history.slice(0, 30);
-    
-    res.json({ history: limitedHistory });
+    const history = await db.select()
+      .from(miningClaims)
+      .where(eq(miningClaims.userId, userId))
+      .orderBy(desc(miningClaims.claimedAt))
+      .limit(30)
+      .all();
+    res.json({ history });
   } catch (err) {
     console.error('[MINING HISTORY ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch mining history' });
@@ -488,8 +376,6 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
     await tx.update(users).set({ miningRate: newRate }).where(eq(users.id, userId));
   });
 
-  await syncUserToFirestore(userId);
-
   res.json({ success: true, newRate });
 });
 
@@ -530,7 +416,7 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
     }).returning().get();
 
     try {
-      await adminDb.collection('withdrawals').doc(String(inserted.id)).set({
+      await addDoc(collection(firebaseDb, 'withdrawals'), {
         localId: inserted.id,
         userId,
         amount,
@@ -543,15 +429,15 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
     }
   });
 
-  await syncUserToFirestore(userId);
-
   res.json({ success: true });
 });
 
 app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
-    const wSnap = await adminDb.collection('withdrawals').where('userId', '==', userId).get();
+    const withdrawalsRef = collection(firebaseDb, 'withdrawals');
+    const q = query(withdrawalsRef, where('userId', '==', userId));
+    const wSnap = await getDocs(q);
     const history: any[] = [];
     wSnap.forEach(docSnap => {
       history.push({ ...docSnap.data(), id: docSnap.id });
@@ -586,170 +472,6 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
   res.json({ referrals: friendDetails });
 });
 
-app.post('/api/referrals/process', requireUser, async (req: any, res: any) => {
-  const currentUserId = req.user.id.toString();
-  const currentUserName = req.user.first_name || 'Friend';
-  const currentUserUsername = req.user.username || '';
-  
-  const rawRef = req.body.start_param || req.startParamFallback || '';
-  let referrerId: string | null = null;
-  if (rawRef) {
-    referrerId = rawRef.toString()
-      .replace(/^ref_tg_/, '')
-      .replace(/^ref_/, '')
-      .replace(/^startapp_/, '')
-      .trim();
-  }
-
-  if (!referrerId || referrerId === currentUserId) {
-    return res.json({ success: false, message: 'Invalid or self referral' });
-  }
-
-  try {
-    const refDocRef = adminDb.collection('referrals').doc(currentUserId);
-    const refSnap = await refDocRef.get();
-    if (refSnap.exists) {
-      return res.json({ success: false, message: 'Already referred' });
-    }
-
-    const rewardUSDT = 1000;
-    const miningBonus = 100;
-    const now = Date.now();
-
-    const referrerSnap = await adminDb.collection('users').doc(referrerId).get();
-    if (!referrerSnap.exists) {
-      return res.json({ success: false, message: 'Referrer does not exist' });
-    }
-    const referrerData = referrerSnap.data()!;
-    const referrerName = referrerData.firstName || referrerData.username || 'your friend';
-
-    await db.transaction(async (tx) => {
-      const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, currentUserId)).get();
-      if (!existingRef) {
-        await tx.insert(referrals).values({
-          referrerId,
-          referredUserId: currentUserId,
-          rewardUSDT,
-          miningBonus,
-          status: 'completed',
-          createdAt: now
-        });
-      }
-
-      await tx.update(users).set({
-        referredBy: referrerId,
-        updatedAt: now
-      }).where(eq(users.id, currentUserId));
-
-      const localReferrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
-      if (localReferrer) {
-        await tx.update(users).set({
-          balance: localReferrer.balance + rewardUSDT,
-          totalEarned: localReferrer.totalEarned + rewardUSDT,
-          miningRate: Math.min(localReferrer.miningRate + miningBonus, MAX_MINING_RATE),
-          referralsCount: localReferrer.referralsCount + 1,
-          referralEarnings: localReferrer.referralEarnings + rewardUSDT,
-          updatedAt: now
-        }).where(eq(users.id, referrerId));
-      }
-    });
-
-    await refDocRef.set({
-      id: currentUserId,
-      referrerId,
-      referredUserId: currentUserId,
-      referredName: currentUserName,
-      referredUsername: currentUserUsername,
-      rewardUSDT,
-      miningBonus,
-      createdAt: now
-    });
-
-    await adminDb.collection('users').doc(referrerId).update({
-      referralsCount: (referrerData.referralsCount || 0) + 1,
-      balance: (referrerData.balance || 0) + rewardUSDT,
-      referralEarnings: (referrerData.referralEarnings || 0) + rewardUSDT,
-      miningRate: Math.min((referrerData.miningRate || 0) + miningBonus, MAX_MINING_RATE)
-    });
-
-    await syncUserToFirestore(currentUserId);
-    await syncUserToFirestore(referrerId);
-
-    res.json({
-      success: true,
-      rewardAmount: rewardUSDT,
-      referrerName
-    });
-  } catch (err: any) {
-    console.error('[PROCESS REFERRAL ERROR]', err);
-    res.status(500).json({ error: 'Internal server error', details: err.message });
-  }
-});
-
-app.post('/api/referrals/claim-milestone', requireUser, async (req: any, res: any) => {
-  const userId = req.user.id.toString();
-  const { target } = req.body;
-
-  if (!target) return res.status(400).json({ error: 'Missing target milestone' });
-
-  try {
-    const milestone = REFERRAL_MILESTONES.find(m => m.target === target);
-    if (!milestone) return res.status(400).json({ error: 'Invalid milestone stage!' });
-
-    const userDocRef = adminDb.collection('users').doc(userId);
-    const userSnap = await userDocRef.get();
-    if (!userSnap.exists) {
-      return res.status(404).json({ error: 'User profile not found' });
-    }
-
-    const userData = userSnap.data()!;
-    const claimed = userData.claimedMilestones || [];
-
-    if (claimed.includes(target)) {
-      return res.status(400).json({ error: 'You have already claimed this milestone reward!' });
-    }
-
-    const refSnap = await adminDb.collection('referrals').where('referrerId', '==', userId).get();
-    const realCount = refSnap.size;
-
-    const referralsCount = Math.max(userData.referralsCount || 0, realCount);
-    if (referralsCount < target) {
-      return res.status(400).json({ error: `You have not reached this target yet! Current: ${referralsCount}, Required: ${target}` });
-    }
-
-    const updatedClaimed = [...claimed, target];
-
-    await db.transaction(async (tx) => {
-      const user = await tx.select().from(users).where(eq(users.id, userId)).get();
-      if (user) {
-        await tx.update(users).set({
-          balance: user.balance + milestone.rewardUSDTUnits,
-          miningRate: user.miningRate + milestone.rewardMiningUnits,
-          updatedAt: Date.now()
-        }).where(eq(users.id, userId));
-      }
-    });
-
-    await userDocRef.update({
-      claimedMilestones: updatedClaimed,
-      balance: (userData.balance || 0) + milestone.rewardUSDTUnits,
-      miningRate: (userData.miningRate || 0) + milestone.rewardMiningUnits
-    });
-
-    await syncUserToFirestore(userId);
-
-    res.json({
-      success: true,
-      rewardUSDT: milestone.rewardUSDTUnits,
-      rewardMiningRate: milestone.rewardMiningUnits,
-      message: `Milestone Claimed! Received +${(milestone.rewardUSDTUnits / 10000).toFixed(2)} USDT and +${(milestone.rewardMiningUnits / 10000).toFixed(2)}/24h Boost!`
-    });
-  } catch (err: any) {
-    console.error('[CLAIM MILESTONE ERROR]', err);
-    res.status(500).json({ error: 'Internal server error', details: err.message });
-  }
-});
-
 // Admin helper
 const isAuthorizedAdmin = (user: any) => {
   if (!user) return false;
@@ -758,413 +480,136 @@ const isAuthorizedAdmin = (user: any) => {
   return username === 'sekanedr_is' || username === 'dev_user' || id === '12345';
 };
 
-// Idempotent background migration from SQLite/LibSQL to Firestore
-async function migrateSqliteToFirestore() {
-  console.log('[MIGRATION] Checking and migrating existing SQLite users & withdrawals to Firestore...');
-  try {
-    // 1. Fetch all SQLite users
-    const allSqlUsers = await db.select().from(users).all();
-    console.log(`[MIGRATION] Found ${allSqlUsers.length} users in SQLite.`);
-    
-    let migratedUsersCount = 0;
-    for (const u of allSqlUsers) {
-      try {
-        const userIdStr = String(u.id);
-        const docRef = adminDb.collection('users').doc(userIdStr);
-        const docSnap = await docRef.get();
-        
-        let existingData = docSnap.exists ? docSnap.data() : null;
-        
-        // Safety check to preserve newer/valid financial data
-        const mergedBalance = Math.max(u.balance || 0, existingData?.balance || 0);
-        const mergedTotalEarned = Math.max(u.totalEarned || 0, existingData?.totalEarned || 0);
-        const mergedTotalWithdrawn = Math.max(u.totalWithdrawn || 0, existingData?.totalWithdrawn || 0);
-        const mergedMiningRate = Math.max(u.miningRate || 0, existingData?.miningRate || 0);
-        const mergedReferralsCount = Math.max(u.referralsCount || 0, existingData?.referralsCount || 0);
-        const mergedReferralEarnings = Math.max(u.referralEarnings || 0, existingData?.referralEarnings || 0);
-        
-        await docRef.set({
-          id: userIdStr,
-          username: u.username || existingData?.username || '',
-          firstName: u.firstName || existingData?.firstName || '',
-          photoUrl: u.photoUrl || existingData?.photoUrl || '',
-          balance: mergedBalance,
-          totalEarned: mergedTotalEarned,
-          totalWithdrawn: mergedTotalWithdrawn,
-          miningRate: mergedMiningRate,
-          referralCode: u.referralCode || existingData?.referralCode || userIdStr,
-          referredBy: u.referredBy || existingData?.referredBy || '',
-          referralsCount: mergedReferralsCount,
-          referralEarnings: mergedReferralEarnings,
-          claimedWelcome: u.claimedWelcome || existingData?.claimedWelcome || 0,
-          claimedMilestones: existingData?.claimedMilestones || [],
-          createdAt: u.createdAt || existingData?.createdAt || Date.now(),
-          updatedAt: u.updatedAt || existingData?.updatedAt || Date.now(),
-          lastActive: existingData?.lastActive || FieldValue.serverTimestamp()
-        }, { merge: true });
-        
-        migratedUsersCount++;
-      } catch (userErr) {
-        console.error(`[MIGRATION] Error migrating user ${u.id}:`, userErr);
-      }
-    }
-    console.log(`[MIGRATION] Successfully processed/merged ${migratedUsersCount} user records.`);
-    
-    // 2. Fetch all SQLite withdrawals
-    const allSqlWithdrawals = await db.select().from(withdrawals).all();
-    console.log(`[MIGRATION] Found ${allSqlWithdrawals.length} withdrawals in SQLite.`);
-    
-    // Build a map of users for fast username/firstName lookup if withdrawals don't have them
-    const userMap = new Map();
-    allSqlUsers.forEach(user => {
-      userMap.set(String(user.id), user);
-    });
-    
-    let migratedWithdrawalsCount = 0;
-    for (const w of allSqlWithdrawals) {
-      try {
-        const withdrawalIdStr = String(w.id);
-        const docRef = adminDb.collection('withdrawals').doc(withdrawalIdStr);
-        
-        // Fetch matching user from our SQLite users map
-        const userObj = userMap.get(String(w.userId));
-        const username = userObj?.username || '';
-        const firstName = userObj?.firstName || '';
-        
-        // Upsert withdrawal safely
-        await docRef.set({
-          localId: w.id,
-          userId: String(w.userId),
-          amount: w.amount,
-          walletAddress: w.walletAddress,
-          status: w.status || 'pending',
-          createdAt: w.createdAt,
-          processedAt: w.processedAt || null,
-          transactionId: w.transactionId || '',
-          username: username,
-          firstName: firstName
-        }, { merge: true });
-        
-        migratedWithdrawalsCount++;
-      } catch (wErr) {
-        console.error(`[MIGRATION] Error migrating withdrawal ${w.id}:`, wErr);
-      }
-    }
-    console.log(`[MIGRATION] Successfully processed/merged ${migratedWithdrawalsCount} withdrawal records.`);
-    console.log('[MIGRATION] Idempotent synchronization completed successfully.');
-  } catch (err: any) {
-    console.error('[MIGRATION CRITICAL ERROR] Migration failed:', err);
-  }
-}
+import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc, where } from 'firebase/firestore';
+import { db as firebaseDb } from './src/lib/firebase.js';
 
-// Admin endpoints - Direct querying of authoritative SQLite/LibSQL database
-app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  try {
-    // 1. Total users
-    const usersCountRes = await db.select({ count: sql<number>`count(*)` }).from(users).get();
-    const totalUsers = usersCountRes ? usersCountRes.count : 0;
-    
-    // 2. Pool Liquidity (total balances in system)
-    const balanceSumRes = await db.select({ sum: sql<number>`sum(${users.balance})` }).from(users).get();
-    const totalBalance = balanceSumRes ? (balanceSumRes.sum || 0) : 0;
-    
-    // 3. Paid Out (sum of approved withdrawals)
-    const approvedSumRes = await db.select({ sum: sql<number>`sum(${withdrawals.amount})` })
-      .from(withdrawals)
-      .where(eq(withdrawals.status, 'approved'))
-      .get();
-    const approvedUSDT = approvedSumRes ? (approvedSumRes.sum || 0) : 0;
-    
-    // 4. Counts of pending, approved, rejected withdrawals
-    const pendingCountRes = await db.select({ count: sql<number>`count(*)` })
-      .from(withdrawals)
-      .where(eq(withdrawals.status, 'pending'))
-      .get();
-    const pendingWithdrawals = pendingCountRes ? pendingCountRes.count : 0;
-
-    const approvedCountRes = await db.select({ count: sql<number>`count(*)` })
-      .from(withdrawals)
-      .where(eq(withdrawals.status, 'approved'))
-      .get();
-    const approvedWithdrawals = approvedCountRes ? approvedCountRes.count : 0;
-
-    const rejectedCountRes = await db.select({ count: sql<number>`count(*)` })
-      .from(withdrawals)
-      .where(eq(withdrawals.status, 'rejected'))
-      .get();
-    const rejectedWithdrawals = rejectedCountRes ? rejectedCountRes.count : 0;
-
-    // 5. Total Claims
-    const claimsCountRes = await db.select({ count: sql<number>`count(*)` }).from(miningClaims).get();
-    const totalClaims = claimsCountRes ? claimsCountRes.count : 0;
-    
-    res.json({
-      totalUsers,
-      totalBalance,
-      approvedUSDT,
-      pendingWithdrawals,
-      approvedWithdrawals,
-      rejectedWithdrawals,
-      totalClaims
-    });
-  } catch (err: any) {
-    console.error('[ADMIN STATS ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch admin stats', details: err.message });
-  }
-});
-
+// Admin endpoints
 app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const page = parseInt(req.query.page || '1', 10);
-    const limit = parseInt(req.query.limit || '10', 10);
-    const search = (req.query.search || '').trim().toLowerCase();
+    // Fetch users from Firebase to include all historical users even if local DB resets
+    const usersRef = collection(firebaseDb, 'users');
+    const querySnapshot = await getDocs(usersRef);
     
-    let whereClause = undefined;
-    if (search) {
-      whereClause = sql`LOWER(${users.id}) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.username}, '')) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.firstName}, '')) LIKE ${'%' + search + '%'}`;
-    }
-    
-    // Get total count
-    let countQuery: any = db.select({ count: sql<number>`count(*)` }).from(users);
-    if (whereClause) {
-      countQuery = countQuery.where(whereClause);
-    }
-    const countResult = await countQuery.get();
-    const total = countResult ? countResult.count : 0;
-    
-    // Fetch paginated users, sorted by lastClaimAt or created_at descending, or updatedAt
-    let usersQuery: any = db.select().from(users);
-    if (whereClause) {
-      usersQuery = usersQuery.where(whereClause) as any;
-    }
-    
-    const paginatedUsers = await usersQuery
-      .orderBy(desc(users.updatedAt))
-      .limit(limit)
-      .offset((page - 1) * limit)
-      .all();
-    
-    res.json({
-      users: paginatedUsers,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
+    const allUsers: any[] = [];
+    querySnapshot.forEach((doc) => {
+      allUsers.push({ id: doc.id, ...doc.data() });
     });
-  } catch (err: any) {
-    console.error('[ADMIN FETCH USERS ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch users', details: err.message });
+    
+    // Sort descending by lastActive
+    allUsers.sort((a, b) => {
+      const timeA = a.lastActive?.seconds || 0;
+      const timeB = b.lastActive?.seconds || 0;
+      return timeB - timeA;
+    });
+    
+    res.json({ users: allUsers });
+  } catch (err) {
+    console.error('[ADMIN FETCH ERROR]', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
 app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
   try {
-    const page = parseInt(req.query.page || '1', 10);
-    const limit = parseInt(req.query.limit || '10', 10);
-    const status = (req.query.status || '').trim();
-    const search = (req.query.search || '').trim().toLowerCase();
-    
-    const conditions: any[] = [];
-    
-    if (status && status !== 'all') {
-      conditions.push(eq(withdrawals.status, status));
-    }
-    
-    if (search) {
-      conditions.push(sql`(LOWER(${withdrawals.userId}) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${withdrawals.walletAddress}, '')) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.username}, '')) LIKE ${'%' + search + '%'} OR LOWER(COALESCE(${users.firstName}, '')) LIKE ${'%' + search + '%'})`);
-    }
-    
-    let whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-    
-    // Count query
-    let countQuery: any = db.select({ count: sql<number>`count(*)` }).from(withdrawals);
-    if (search) {
-      countQuery = countQuery.leftJoin(users, eq(withdrawals.userId, users.id)) as any;
-    }
-    if (whereClause) {
-      countQuery = countQuery.where(whereClause) as any;
-    }
-    const countResult = await countQuery.get();
-    const total = countResult ? countResult.count : 0;
-    
-    // Paginated, joined query
-    let selectQuery: any = db.select({
-      id: withdrawals.id,
-      userId: withdrawals.userId,
-      amount: withdrawals.amount,
-      walletAddress: withdrawals.walletAddress,
-      status: withdrawals.status,
-      createdAt: withdrawals.createdAt,
-      processedAt: withdrawals.processedAt,
-      transactionId: withdrawals.transactionId,
-      username: users.username,
-      firstName: users.firstName
-    })
-    .from(withdrawals)
-    .leftJoin(users, eq(withdrawals.userId, users.id));
-    
-    if (whereClause) {
-      selectQuery = selectQuery.where(whereClause) as any;
-    }
-    
-    const rawResults = await selectQuery
-      .orderBy(desc(withdrawals.createdAt))
-      .limit(limit)
-      .offset((page - 1) * limit)
-      .all();
-      
-    const mapped = rawResults.map(w => ({
-      ...w,
-      id: String(w.id), // Convert ID to string for AdminTab compatibility
-      localId: w.id,
-      username: w.username || '',
-      firstName: w.firstName || ''
-    }));
-    
-    res.json({
-      withdrawals: mapped,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
+    // Fetch users mapping from Firebase
+    const usersRef = collection(firebaseDb, 'users');
+    const userSnapshot = await getDocs(usersRef);
+    const firebaseUsersMap = new Map();
+    userSnapshot.forEach(doc => {
+      firebaseUsersMap.set(doc.id, doc.data());
     });
+    
+    // Fetch withdrawals from Firebase
+    const withdrawalsRef = collection(firebaseDb, 'withdrawals');
+    const withdrawalSnapshot = await getDocs(withdrawalsRef);
+    
+    const result: any[] = [];
+    withdrawalSnapshot.forEach((docSnap) => {
+      const w = docSnap.data();
+      const u = firebaseUsersMap.get(w.userId);
+      result.push({
+        id: docSnap.id,
+        localId: w.localId,
+        userId: w.userId,
+        amount: w.amount,
+        walletAddress: w.walletAddress,
+        status: w.status,
+        createdAt: w.createdAt,
+        processedAt: w.processedAt,
+        username: u?.username,
+        firstName: u?.firstName
+      });
+    });
+    
+    // Sort descending by createdAt
+    result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    
+    res.json({ withdrawals: result });
   } catch (err: any) {
-    console.error('[ADMIN FETCH WITHDRAWALS ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch withdrawals', details: err.message });
+    console.error('[ADMIN FETCH ERROR]', err);
+    res.status(500).json({ error: 'Failed to fetch withdrawals', details: err.message || err.toString() });
   }
 });
 
 app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  const idStr = req.params.id; // SQLite ID
-  const { transactionId } = req.body;
-  const idNum = parseInt(idStr, 10);
-  
   try {
-    if (isNaN(idNum)) {
-      return res.status(400).json({ error: 'Invalid withdrawal ID' });
-    }
-    
-    // 1. Fetch current status from SQLite to ensure it is pending
-    const wData = await db.select().from(withdrawals).where(eq(withdrawals.id, idNum)).get();
-    if (!wData) return res.status(404).json({ error: 'Withdrawal not found' });
-    
-    if (wData.status !== 'pending') {
-      return res.status(400).json({ error: 'Withdrawal has already been processed' });
-    }
-    
-    const processedAt = Date.now();
-    
-    // 2. Update SQLite
-    await db.update(withdrawals).set({
-      status: 'approved',
-      transactionId: transactionId || '',
-      processedAt
-    }).where(eq(withdrawals.id, idNum));
-    
-    // 3. Update Firestore (Idempotent update)
-    try {
-      await adminDb.collection('withdrawals').doc(idStr).set({
-        status: 'approved',
-        transactionId: transactionId || '',
-        processedAt
-      }, { merge: true });
-    } catch (e) {
-      console.error('[APPROVE FIRESTORE ERROR] Non-blocking Firestore update failed:', e);
-    }
+    const id = req.params.id; // Firebase ID
+    const wRef = doc(firebaseDb, 'withdrawals', id);
+    await updateDoc(wRef, { status: 'approved', processedAt: Date.now() });
     
     res.json({ success: true });
-  } catch (err: any) {
-    console.error('[APPROVE ERROR]', err);
-    res.status(500).json({ error: 'Failed to approve', details: err.message });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve' });
   }
 });
 
 app.post('/api/admin/withdrawals/:id/reject', requireUser, async (req: any, res: any) => {
   if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  const idStr = req.params.id; // SQLite ID
-  const idNum = parseInt(idStr, 10);
-  
   try {
-    if (isNaN(idNum)) {
-      return res.status(400).json({ error: 'Invalid withdrawal ID' });
-    }
+    const id = req.params.id; // Firebase ID
+    const wRef = doc(firebaseDb, 'withdrawals', id);
+    // Let's get the document to get the amount and userId
+    const { getDoc } = require('firebase/firestore');
+    const wSnap = await getDoc(wRef);
+    if (!wSnap.exists()) return res.status(404).json({ error: 'Not found' });
     
-    // 1. Fetch current status from SQLite to ensure it is pending
-    const wData = await db.select().from(withdrawals).where(eq(withdrawals.id, idNum)).get();
-    if (!wData) return res.status(404).json({ error: 'Withdrawal not found' });
+    const w = wSnap.data();
+    if (w.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
     
-    if (wData.status !== 'pending') {
-      return res.status(400).json({ error: 'Withdrawal has already been processed' });
-    }
+    await updateDoc(wRef, { status: 'rejected', processedAt: Date.now() });
     
-    const processedAt = Date.now();
-    
-    // 2. Perform rejection and balance refund in SQLite inside a transaction
-    await db.transaction(async (tx) => {
-      await tx.update(withdrawals).set({
-        status: 'rejected',
-        processedAt
-      }).where(eq(withdrawals.id, idNum));
+    // Refund balance in Firebase
+    const uRef = doc(firebaseDb, 'users', w.userId);
+    const uSnap = await getDoc(uRef);
+    if (uSnap.exists()) {
+      const u = uSnap.data();
+      const currentBalance = u.balance || u.totalEarned || 0;
+      await updateDoc(uRef, {
+        balance: currentBalance + w.amount,
+        totalWithdrawn: Math.max(0, (u.totalWithdrawn || 0) - w.amount)
+      });
       
-      const u = await tx.select().from(users).where(eq(users.id, wData.userId)).get();
-      if (u) {
-        const newBalance = u.balance + wData.amount;
-        const newTotalWithdrawn = Math.max(0, u.totalWithdrawn - wData.amount);
-        await tx.update(users).set({
-          balance: newBalance,
-          totalWithdrawn: newTotalWithdrawn,
-          updatedAt: Date.now()
-        }).where(eq(users.id, wData.userId));
-      }
-    });
-    
-    // 3. Sync update to Firestore
-    try {
-      await adminDb.collection('withdrawals').doc(idStr).set({
-        status: 'rejected',
-        processedAt
-      }, { merge: true });
-      
-      // Update user in Firestore
-      const uDocRef = adminDb.collection('users').doc(wData.userId);
-      const uSnap = await uDocRef.get();
-      if (uSnap.exists) {
-        const uData = uSnap.data()!;
-        await uDocRef.update({
-          balance: (uData.balance || 0) + wData.amount,
-          totalWithdrawn: Math.max(0, (uData.totalWithdrawn || 0) - wData.amount)
-        });
-      }
-    } catch (e) {
-      console.error('[REJECT FIRESTORE ERROR] Non-blocking Firestore update failed:', e);
+      // Try to refund in local SQLite too if user exists
+      try {
+        await db.update(users).set({ 
+          balance: currentBalance + w.amount, 
+          totalWithdrawn: Math.max(0, (u.totalWithdrawn || 0) - w.amount) 
+        }).where(eq(users.id, w.userId));
+      } catch (e) {}
     }
     
     res.json({ success: true });
-  } catch (err: any) {
-    console.error('[REJECT ERROR]', err);
-    res.status(500).json({ error: 'Failed to reject', details: err.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to reject' });
   }
 });
 
 // Vite middleware for development
 async function startServer() {
-  // Trigger background idempotent SQLite to Firestore migration on boot
-  migrateSqliteToFirestore().catch((err) => {
-    console.error('[BACKGROUND MIGRATION ERROR]', err);
-  });
-
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
