@@ -141,26 +141,52 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
   // 1. Register user if new
   if (!user) {
-    isNewUserFlag = true;
+    // A) Try to restore from Firebase first (Hydration for ephemeral SQLite)
     try {
-      user = await db.insert(users).values({
-        id: userId,
-        username: tgUser.username || '',
-        firstName: tgUser.first_name || '',
-        photoUrl: tgUser.photo_url || '',
-        referralCode: userId,
-        balance: 0,
-        totalEarned: 0,
-        miningRate: BASE_MINING_RATE,
-        referralsCount: 0,
-        referralEarnings: 0,
-        createdAt: Date.now()
-      }).returning().get();
-      console.log(`[AUTH] New user created: ${userId}`);
-    } catch (err) {
-      console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
-      user = await db.select().from(users).where(eq(users.id, userId)).get();
-      if (!user) return res.status(500).json({ error: 'Database error' });
+      const fbUser = await lookupUserByTelegramId(userId);
+      if (fbUser) {
+        user = await db.insert(users).values({
+          id: userId,
+          username: fbUser.username || tgUser.username || '',
+          firstName: fbUser.firstName || tgUser.first_name || '',
+          photoUrl: fbUser.photoUrl || tgUser.photo_url || '',
+          referralCode: userId,
+          balance: fbUser.balance || 0,
+          totalEarned: fbUser.totalEarned || 0,
+          miningRate: fbUser.miningRate || BASE_MINING_RATE,
+          referralsCount: fbUser.referralsCount || 0,
+          referralEarnings: fbUser.referralEarnings || 0,
+          createdAt: fbUser.createdAt || Date.now()
+        }).returning().get();
+        console.log(`[AUTH] Hydrated user from Firebase: ${userId}`);
+      }
+    } catch (e) {
+      console.warn(`[AUTH] Failed to hydrate user ${userId} from Firebase`, e);
+    }
+
+    // B) If still no user, create a completely new one
+    if (!user) {
+      isNewUserFlag = true;
+      try {
+        user = await db.insert(users).values({
+          id: userId,
+          username: tgUser.username || '',
+          firstName: tgUser.first_name || '',
+          photoUrl: tgUser.photo_url || '',
+          referralCode: userId,
+          balance: 0,
+          totalEarned: 0,
+          miningRate: BASE_MINING_RATE,
+          referralsCount: 0,
+          referralEarnings: 0,
+          createdAt: Date.now()
+        }).returning().get();
+        console.log(`[AUTH] New user created: ${userId}`);
+      } catch (err) {
+        console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
+        user = await db.select().from(users).where(eq(users.id, userId)).get();
+        if (!user) return res.status(500).json({ error: 'Database error' });
+      }
     }
   }
 
@@ -502,7 +528,7 @@ const isAuthorizedAdmin = (user: any) => {
 };
 
 import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc, where } from 'firebase/firestore';
-import { db as firebaseDb } from './src/lib/firebase.js';
+import { db as firebaseDb, lookupUserByTelegramId } from './src/lib/firebase.js';
 
 // Admin endpoints
 app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
