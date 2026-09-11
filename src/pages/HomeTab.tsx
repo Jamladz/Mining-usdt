@@ -25,6 +25,16 @@ export function HomeTab() {
           'Authorization': initData || ''
         }
       });
+      
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Unexpected response format');
+      }
+
       const data = await res.json();
       if (data.history) {
         setHistory(data.history);
@@ -72,6 +82,17 @@ export function HomeTab() {
           'Authorization': initData || ''
         }
       });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error: ${res.status}`);
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Unexpected response format from server');
+      }
+
       const data = await res.json();
       if (data.success) {
         if (user) {

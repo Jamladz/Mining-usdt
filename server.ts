@@ -21,51 +21,40 @@ const MIN_WITHDRAWAL = 30000; // 3 USDT
 
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
-  // Allow mock initData in preview/dev or when token is not configured
-  if (
-    !initData ||
-    initData === 'mock_init_data' ||
-    initData.startsWith('mock_') ||
-    !BOT_TOKEN ||
-    BOT_TOKEN === 'mock_token'
-  ) {
+  // In development, allow bypass if token is mock_token
+  if (process.env.NODE_ENV !== 'production' && BOT_TOKEN === 'mock_token') {
     try {
       const urlParams = new URLSearchParams(initData);
       const userStr = urlParams.get('user');
       if (userStr) return JSON.parse(userStr);
-      return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
+      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
     } catch {
-      return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
+      return { id: 12345, username: 'dev_user', first_name: 'Dev' };
     }
   }
 
-  try {
-    const urlParams = new URLSearchParams(initData);
-    const hash = urlParams.get('hash');
-    urlParams.delete('hash');
-
-    const keys = Array.from(urlParams.keys()).sort();
-    const dataCheckString = keys.map(key => `${key}=${urlParams.get(key)}`).join('\n');
-
-    const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
-    const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-
-    if (hash === expectedHash) {
-      const userStr = urlParams.get('user');
-      if (userStr) return JSON.parse(userStr);
-    }
-  } catch (err) {
-    console.warn('[AUTH] Failed parsing Telegram signature:', err);
+  // Fail-fast in production if token is mock_token or empty
+  if (!BOT_TOKEN || BOT_TOKEN === 'mock_token') {
+    throw new Error('Telegram Bot Token (TELEGRAM_BOT_TOKEN) is not configured in production mode!');
   }
 
-  // Fallback to user parameter in query if signature check didn't pass in dev
-  try {
-    const urlParams = new URLSearchParams(initData);
-    const userStr = urlParams.get('user');
-    if (userStr) return JSON.parse(userStr);
-  } catch (e) {}
+  const urlParams = new URLSearchParams(initData);
+  const hash = urlParams.get('hash');
+  urlParams.delete('hash');
 
-  return { id: 12345, username: 'sekanedr_is', first_name: 'Sekanedr' };
+  const keys = Array.from(urlParams.keys()).sort();
+  const dataCheckString = keys.map(key => `${key}=${urlParams.get(key)}`).join('\n');
+
+  const secretKey = crypto.createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+  const expectedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+  if (hash !== expectedHash) {
+    throw new Error('Invalid signature');
+  }
+
+  const userStr = urlParams.get('user');
+  if (!userStr) throw new Error('No user data');
+  return JSON.parse(userStr);
 }
 
 // Middleware to extract and validate user
@@ -122,49 +111,25 @@ async function getFormattedUser(userId: string) {
 
 // AUTHENTICATION & ATOMIC REFERRAL PROCESSING
 app.post('/api/auth', requireUser, async (req: any, res: any) => {
-  const tgUser = req.user;
-  const userId = tgUser.id.toString();
-  
-  let user = await db.select().from(users).where(eq(users.id, userId)).get();
-  let isNewUserFlag = false;
+  try {
+    const tgUser = req.user;
+    const userId = tgUser.id.toString();
+    
+    let user = await db.select().from(users).where(eq(users.id, userId)).get();
+    let isNewUserFlag = false;
 
-  // Extract and sanitize referrer ID
-  const rawRef = req.body.start_param || req.startParamFallback || '';
-  let referrerId: string | null = null;
-  if (rawRef) {
-    referrerId = rawRef.toString()
-      .replace(/^ref_tg_/, '')
-      .replace(/^ref_/, '')
-      .replace(/^startapp_/, '')
-      .trim();
-  }
-
-  // 1. Register user if new
-  if (!user) {
-    // A) Try to restore from Firebase first (Hydration for ephemeral SQLite)
-    try {
-      const fbUser = await lookupUserByTelegramId(userId);
-      if (fbUser) {
-        user = await db.insert(users).values({
-          id: userId,
-          username: fbUser.username || tgUser.username || '',
-          firstName: fbUser.firstName || tgUser.first_name || '',
-          photoUrl: fbUser.photoUrl || tgUser.photo_url || '',
-          referralCode: userId,
-          balance: fbUser.balance || 0,
-          totalEarned: fbUser.totalEarned || 0,
-          miningRate: fbUser.miningRate || BASE_MINING_RATE,
-          referralsCount: fbUser.referralsCount || 0,
-          referralEarnings: fbUser.referralEarnings || 0,
-          createdAt: fbUser.createdAt || Date.now()
-        }).returning().get();
-        console.log(`[AUTH] Hydrated user from Firebase: ${userId}`);
-      }
-    } catch (e) {
-      console.warn(`[AUTH] Failed to hydrate user ${userId} from Firebase`, e);
+    // Extract and sanitize referrer ID
+    const rawRef = req.body.start_param || req.startParamFallback || '';
+    let referrerId: string | null = null;
+    if (rawRef) {
+      referrerId = rawRef.toString()
+        .replace(/^ref_tg_/, '')
+        .replace(/^ref_/, '')
+        .replace(/^startapp_/, '')
+        .trim();
     }
 
-    // B) If still no user, create a completely new one
+    // 1. Register user if new
     if (!user) {
       isNewUserFlag = true;
       try {
@@ -188,87 +153,66 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
         if (!user) return res.status(500).json({ error: 'Database error' });
       }
     }
-  }
 
-  // 2. Atomic Referral Processing
-  // Rules:
-  // - referrerId must exist and not be empty
-  // - No Self Referral (referrerId !== userId)
-  // - First valid referrer wins (user.referredBy must be empty/null)
-  if (referrerId && referrerId !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
-    if (/^[0-9]{5,15}$/.test(referrerId)) {
-      try {
-        await db.transaction(async (tx) => {
-          // Re-verify current state inside transaction
-          const currentUserState = await tx.select().from(users).where(eq(users.id, userId)).get();
-          if (!currentUserState || (currentUserState.referredBy && currentUserState.referredBy.trim() !== '')) {
-            console.log(`[REFERRAL ALREADY PROCESSED] User ${userId} already has referrer.`);
-            return;
-          }
+    // 2. Atomic Referral Processing
+    if (referrerId && referrerId !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
+      if (/^[0-9]{5,15}$/.test(referrerId)) {
+        try {
+          await db.transaction(async (tx) => {
+            const currentUserState = await tx.select().from(users).where(eq(users.id, userId)).get();
+            if (!currentUserState || (currentUserState.referredBy && currentUserState.referredBy.trim() !== '')) {
+              return;
+            }
 
-          const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
-          if (!referrer) {
-            console.log(`[REFERRAL INVALID] Referrer ${referrerId} does not exist.`);
-            return;
-          }
+            const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
+            if (!referrer) return;
 
-          // Check if referral record already exists
-          const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
-          if (existingRef) {
-            console.log(`[REFERRAL ALREADY RECORDED] Referral record already exists for ${userId}.`);
-            return;
-          }
+            const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
+            if (existingRef) return;
 
-          // Execute Referral Atomic Transaction
-          // A) Record successful referral
-          await tx.insert(referrals).values({
-            referrerId,
-            referredUserId: userId,
-            rewardUSDT: REFERRAL_USDT_REWARD_UNITS, // 1000 = 0.10 USDT
-            miningBonus: REFERRAL_MINING_BONUS_UNITS, // 100 = 0.01 Mining Rate
-            status: 'completed',
-            createdAt: Date.now()
+            await tx.insert(referrals).values({
+              referrerId,
+              referredUserId: userId,
+              rewardUSDT: REFERRAL_USDT_REWARD_UNITS,
+              miningBonus: REFERRAL_MINING_BONUS_UNITS,
+              status: 'completed',
+              createdAt: Date.now()
+            });
+
+            await tx.update(users).set({
+              referredBy: referrerId,
+              updatedAt: Date.now()
+            }).where(eq(users.id, userId));
+
+            await tx.update(users).set({
+              balance: referrer.balance + REFERRAL_USDT_REWARD_UNITS,
+              totalEarned: referrer.totalEarned + REFERRAL_USDT_REWARD_UNITS,
+              miningRate: Math.min(referrer.miningRate + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
+              referralsCount: referrer.referralsCount + 1,
+              referralEarnings: referrer.referralEarnings + REFERRAL_USDT_REWARD_UNITS,
+              updatedAt: Date.now()
+            }).where(eq(users.id, referrerId));
           });
 
-          // B) Update Referred User (B): set referredBy = referrerId
-          await tx.update(users).set({
-            referredBy: referrerId,
-            updatedAt: Date.now()
-          }).where(eq(users.id, userId));
-
-          // C) Update Referrer (A): +0.1 USDT balance, +0.01 miningRate, +1 referralsCount, +0.1 USDT referralEarnings
-          await tx.update(users).set({
-            balance: referrer.balance + REFERRAL_USDT_REWARD_UNITS,
-            totalEarned: referrer.totalEarned + REFERRAL_USDT_REWARD_UNITS,
-            miningRate: Math.min(referrer.miningRate + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
-            referralsCount: referrer.referralsCount + 1,
-            referralEarnings: referrer.referralEarnings + REFERRAL_USDT_REWARD_UNITS,
-            updatedAt: Date.now()
-          }).where(eq(users.id, referrerId));
-
-          console.log(`[REFERRAL SUCCESS] ${referrerId} referred ${userId}. Referrer rewarded: +0.1 USDT, +0.01 Mining Rate.`);
-        });
-
-        // Refresh user after transaction
-        user = await db.select().from(users).where(eq(users.id, userId)).get();
-      } catch (err: any) {
-        if (err.message && err.message.includes('UNIQUE constraint failed')) {
-          console.log(`[REFERRAL IDEMPOTENCY] Unique constraint triggered for user ${userId}.`);
-        } else {
-          console.error('[REFERRAL TRANSACTION ERROR]', err);
+          user = await db.select().from(users).where(eq(users.id, userId)).get();
+        } catch (err: any) {
+          console.error('[REFERRAL ERROR]', err);
         }
       }
     }
+
+    const formattedUser = await getFormattedUser(userId);
+
+    res.json({ 
+      user: formattedUser, 
+      referralsCount: user!.referralsCount, 
+      referralEarnings: user!.referralEarnings,
+      isNewUser: isNewUserFlag
+    });
+  } catch (err) {
+    console.error('[AUTH ROUTE ERROR]', err);
+    res.status(500).json({ error: 'Internal server error during authentication' });
   }
-
-  const formattedUser = await getFormattedUser(userId);
-
-  res.json({ 
-    user: formattedUser, 
-    referralsCount: user!.referralsCount, 
-    referralEarnings: user!.referralEarnings,
-    isNewUser: isNewUserFlag
-  });
 });
 
 app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
@@ -315,24 +259,12 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
       lastClaimAt: now,
     }).where(eq(users.id, userId));
 
-    const inserted = await tx.insert(miningClaims).values({
+    await tx.insert(miningClaims).values({
       userId,
       amount: reward,
       claimedAt: now,
       nextClaimAt: now + CLAIM_COOLDOWN_MS,
-    }).returning().get();
-
-    try {
-      await addDoc(collection(firebaseDb, 'mining_claims'), {
-        localId: inserted.id,
-        userId,
-        amount: reward,
-        claimedAt: now,
-        nextClaimAt: now + CLAIM_COOLDOWN_MS
-      });
-    } catch(err) {
-      console.error('Failed to sync mining claim to Firebase', err);
-    }
+    });
   });
 
   const updatedUser = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -342,22 +274,13 @@ app.post('/api/mine', requireUser, async (req: any, res: any) => {
 app.get('/api/mine/history', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   try {
-    const claimsRef = collection(firebaseDb, 'mining_claims');
-    const q = query(claimsRef, where('userId', '==', userId));
-    const claimsSnap = await getDocs(q);
-    
-    const history: any[] = [];
-    claimsSnap.forEach(docSnap => {
-      history.push({ ...docSnap.data(), id: docSnap.id });
-    });
-    
-    // Sort descending by claimedAt
-    history.sort((a, b) => (b.claimedAt || 0) - (a.claimedAt || 0));
-    
-    // Limit to 30
-    const limitedHistory = history.slice(0, 30);
-    
-    res.json({ history: limitedHistory });
+    const history = await db.select()
+      .from(miningClaims)
+      .where(eq(miningClaims.userId, userId))
+      .orderBy(desc(miningClaims.claimedAt))
+      .limit(30)
+      .all();
+    res.json({ history });
   } catch (err) {
     console.error('[MINING HISTORY ERROR]', err);
     res.status(500).json({ error: 'Failed to fetch mining history' });
@@ -454,26 +377,13 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
       totalWithdrawn: user.totalWithdrawn + amount
     }).where(eq(users.id, userId));
 
-    const inserted = await tx.insert(withdrawals).values({
+    await tx.insert(withdrawals).values({
       userId,
       amount,
       walletAddress,
       status: 'pending',
       createdAt: Date.now()
-    }).returning().get();
-
-    try {
-      await addDoc(collection(firebaseDb, 'withdrawals'), {
-        localId: inserted.id,
-        userId,
-        amount,
-        walletAddress,
-        status: 'pending',
-        createdAt: inserted.createdAt
-      });
-    } catch(err) {
-      console.error('Failed to sync withdrawal to Firebase', err);
-    }
+    });
   });
 
   res.json({ success: true });
@@ -481,21 +391,8 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
 
 app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
-  try {
-    const withdrawalsRef = collection(firebaseDb, 'withdrawals');
-    const q = query(withdrawalsRef, where('userId', '==', userId));
-    const wSnap = await getDocs(q);
-    const history: any[] = [];
-    wSnap.forEach(docSnap => {
-      history.push({ ...docSnap.data(), id: docSnap.id });
-    });
-    // Sort in memory
-    history.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    res.json({ history });
-  } catch (err) {
-    console.error('[WITHDRAWAL FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed' });
-  }
+  const history = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).all();
+  res.json({ history });
 });
 
 app.get('/api/referrals', requireUser, async (req: any, res: any) => {
@@ -516,143 +413,15 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
     };
   }));
 
-  res.json({ referrals: friendDetails });
+  res.json({ 
+    referrals: friendDetails 
+  });
 });
 
-// Admin helper
-const isAuthorizedAdmin = (user: any) => {
-  if (!user) return false;
-  const username = (user.username || '').toLowerCase();
-  const id = String(user.id || '');
-  return username === 'sekanedr_is' || username === 'dev_user' || id === '12345';
-};
-
-import { getFirestore, collection, getDocs, orderBy, query, addDoc, updateDoc, doc, where } from 'firebase/firestore';
-import { db as firebaseDb, lookupUserByTelegramId } from './src/lib/firebase.js';
-
-// Admin endpoints
-app.get('/api/admin/users', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  try {
-    // Fetch users from Firebase to include all historical users even if local DB resets
-    const usersRef = collection(firebaseDb, 'users');
-    const querySnapshot = await getDocs(usersRef);
-    
-    const allUsers: any[] = [];
-    querySnapshot.forEach((doc) => {
-      allUsers.push({ id: doc.id, ...doc.data() });
-    });
-    
-    // Sort descending by lastActive
-    allUsers.sort((a, b) => {
-      const timeA = a.lastActive?.seconds || 0;
-      const timeB = b.lastActive?.seconds || 0;
-      return timeB - timeA;
-    });
-    
-    res.json({ users: allUsers });
-  } catch (err) {
-    console.error('[ADMIN FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-app.get('/api/admin/withdrawals', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  try {
-    // Fetch users mapping from Firebase
-    const usersRef = collection(firebaseDb, 'users');
-    const userSnapshot = await getDocs(usersRef);
-    const firebaseUsersMap = new Map();
-    userSnapshot.forEach(doc => {
-      firebaseUsersMap.set(doc.id, doc.data());
-    });
-    
-    // Fetch withdrawals from Firebase
-    const withdrawalsRef = collection(firebaseDb, 'withdrawals');
-    const withdrawalSnapshot = await getDocs(withdrawalsRef);
-    
-    const result: any[] = [];
-    withdrawalSnapshot.forEach((docSnap) => {
-      const w = docSnap.data();
-      const u = firebaseUsersMap.get(w.userId);
-      result.push({
-        id: docSnap.id,
-        localId: w.localId,
-        userId: w.userId,
-        amount: w.amount,
-        walletAddress: w.walletAddress,
-        status: w.status,
-        createdAt: w.createdAt,
-        processedAt: w.processedAt,
-        username: u?.username,
-        firstName: u?.firstName
-      });
-    });
-    
-    // Sort descending by createdAt
-    result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    
-    res.json({ withdrawals: result });
-  } catch (err: any) {
-    console.error('[ADMIN FETCH ERROR]', err);
-    res.status(500).json({ error: 'Failed to fetch withdrawals', details: err.message || err.toString() });
-  }
-});
-
-app.post('/api/admin/withdrawals/:id/approve', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  try {
-    const id = req.params.id; // Firebase ID
-    const wRef = doc(firebaseDb, 'withdrawals', id);
-    await updateDoc(wRef, { status: 'approved', processedAt: Date.now() });
-    
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to approve' });
-  }
-});
-
-app.post('/api/admin/withdrawals/:id/reject', requireUser, async (req: any, res: any) => {
-  if (!isAuthorizedAdmin(req.user)) return res.status(403).json({ error: 'Forbidden' });
-  try {
-    const id = req.params.id; // Firebase ID
-    const wRef = doc(firebaseDb, 'withdrawals', id);
-    // Let's get the document to get the amount and userId
-    const { getDoc } = require('firebase/firestore');
-    const wSnap = await getDoc(wRef);
-    if (!wSnap.exists()) return res.status(404).json({ error: 'Not found' });
-    
-    const w = wSnap.data();
-    if (w.status !== 'pending') return res.status(400).json({ error: 'Not pending' });
-    
-    await updateDoc(wRef, { status: 'rejected', processedAt: Date.now() });
-    
-    // Refund balance in Firebase
-    const uRef = doc(firebaseDb, 'users', w.userId);
-    const uSnap = await getDoc(uRef);
-    if (uSnap.exists()) {
-      const u = uSnap.data();
-      const currentBalance = u.balance || u.totalEarned || 0;
-      await updateDoc(uRef, {
-        balance: currentBalance + w.amount,
-        totalWithdrawn: Math.max(0, (u.totalWithdrawn || 0) - w.amount)
-      });
-      
-      // Try to refund in local SQLite too if user exists
-      try {
-        await db.update(users).set({ 
-          balance: currentBalance + w.amount, 
-          totalWithdrawn: Math.max(0, (u.totalWithdrawn || 0) - w.amount) 
-        }).where(eq(users.id, w.userId));
-      } catch (e) {}
-    }
-    
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to reject' });
-  }
+// Catch-all for unknown API routes - MUST be after all valid API routes
+app.all('/api/(.*)', (req, res) => {
+  console.log(`[API 404] ${req.method} ${req.url}`);
+  res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
 
 // Vite middleware for development
@@ -666,7 +435,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get(/^(?!\/api).*/, (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

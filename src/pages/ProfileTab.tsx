@@ -332,7 +332,7 @@ export function ProfileTab() {
                   <div className="flex items-center">
                     <span className={cn(
                       "text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded border",
-                      (tx.status === 'completed' || tx.status === 'approved') ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                      tx.status === 'completed' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
                       tx.status === 'rejected' ? "bg-red-50 text-red-600 border-red-100" :
                       "bg-amber-50 text-amber-600 border-amber-100"
                     )}>

@@ -323,8 +323,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           start_param: startParam
         })
       });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Auth request failed:', res.status, errorText);
+        throw new Error(`Server returned ${res.status}: ${errorText.substring(0, 100)}`);
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await res.text();
+        console.error('Expected JSON but received:', text.substring(0, 100));
+        throw new Error('Server returned non-JSON response');
+      }
+
       const data = await res.json();
-      if (data && data.user) {
+      if (data.user) {
         const newUser: User = { 
           ...data.user, 
           referralsCount: data.referralsCount ?? data.user.referralsCount ?? 0,
@@ -353,25 +367,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }, 800);
           }
           return newUser;
-        });
-      } else {
-        // Fallback if data.user is missing
-        setIsAuthCompleted(true);
-        setUser((current: any) => {
-          if (current) return current;
-          return {
-            id: tgData?.user?.id?.toString() || '12345',
-            firstName: tgData?.user?.first_name || 'Sekanedr',
-            username: tgData?.user?.username || 'sekanedr_is',
-            balance: 0,
-            miningRate: 1000,
-            totalEarned: 0,
-            totalWithdrawn: 0,
-            referralsCount: 0,
-            referralEarnings: 0,
-            photoUrl: tgData?.user?.photo_url || '',
-            completedTasks: '[]'
-          };
         });
       }
     } catch (e) {
