@@ -18,14 +18,37 @@ export async function syncUserToFirebase(user: any) {
       username: user.username || '',
       firstName: user.firstName || '',
       photoUrl: user.photoUrl || '',
-      referralsCount: user.referralsCount || 0,
+      balance: user.balance || 0,
       totalEarned: user.totalEarned || 0,
-      miningRate: user.miningRate || 0,
+      totalWithdrawn: user.totalWithdrawn || 0,
+      miningRate: user.miningRate || 1000,
+      referralsCount: user.referralsCount || 0,
+      referralEarnings: user.referralEarnings || 0,
+      claimedWelcome: user.claimedWelcome || 0,
+      claimedMilestones: typeof user.claimedMilestones === 'string' ? user.claimedMilestones : JSON.stringify(user.claimedMilestones || []),
       lastActive: serverTimestamp()
     }, { merge: true });
     console.log('[FIREBASE] Synced user profile successfully');
   } catch (err) {
     console.warn('[FIREBASE] Failed to sync user profile:', err);
+  }
+}
+
+/**
+ * Get user profile directly from Firestore.
+ */
+export async function getUserFromFirebase(userId: string) {
+  if (!userId) return null;
+  try {
+    const userDocRef = doc(db, 'users', userId.toString());
+    const docSnap = await getDoc(userDocRef);
+    if (docSnap.exists()) {
+      return docSnap.data();
+    }
+    return null;
+  } catch (err) {
+    console.error('[FIREBASE] Failed to get user:', err);
+    return null;
   }
 }
 

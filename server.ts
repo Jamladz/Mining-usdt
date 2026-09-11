@@ -132,21 +132,24 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     // 1. Register user if new
     if (!user) {
       isNewUserFlag = true;
+      const backup = req.body.firestore_backup;
       try {
         user = await db.insert(users).values({
           id: userId,
-          username: tgUser.username || '',
-          firstName: tgUser.first_name || '',
-          photoUrl: tgUser.photo_url || '',
+          username: tgUser.username || backup?.username || '',
+          firstName: tgUser.first_name || backup?.firstName || '',
+          photoUrl: tgUser.photo_url || backup?.photoUrl || '',
           referralCode: userId,
-          balance: 0,
-          totalEarned: 0,
-          miningRate: BASE_MINING_RATE,
-          referralsCount: 0,
-          referralEarnings: 0,
+          balance: backup?.balance ?? 0,
+          totalEarned: backup?.totalEarned ?? 0,
+          totalWithdrawn: backup?.totalWithdrawn ?? 0,
+          miningRate: backup?.miningRate ?? BASE_MINING_RATE,
+          referralsCount: backup?.referralsCount ?? 0,
+          referralEarnings: backup?.referralEarnings ?? 0,
+          claimedWelcome: backup?.claimedWelcome ?? 0,
           createdAt: Date.now()
         }).returning().get();
-        console.log(`[AUTH] New user created: ${userId}`);
+        console.log(`[AUTH] New user created (restored from Firestore backup): ${userId}`);
       } catch (err) {
         console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
         user = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -164,7 +167,25 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
               return;
             }
 
-            const referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
+            let referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
+            if (!referrer) {
+              // Create missing referrer on the fly in SQLite to avoid losing the referral
+              console.log(`[REFERRAL] Creating missing referrer ${referrerId} on-the-fly in SQLite`);
+              await tx.insert(users).values({
+                id: referrerId,
+                username: '',
+                firstName: 'Friend',
+                referralCode: referrerId,
+                balance: 0,
+                totalEarned: 0,
+                miningRate: BASE_MINING_RATE,
+                referralsCount: 0,
+                referralEarnings: 0,
+                createdAt: Date.now()
+              });
+              referrer = await tx.select().from(users).where(eq(users.id, referrerId)).get();
+            }
+
             if (!referrer) return;
 
             const existingRef = await tx.select().from(referrals).where(eq(referrals.referredUserId, userId)).get();
@@ -185,11 +206,11 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
             }).where(eq(users.id, userId));
 
             await tx.update(users).set({
-              balance: referrer.balance + REFERRAL_USDT_REWARD_UNITS,
-              totalEarned: referrer.totalEarned + REFERRAL_USDT_REWARD_UNITS,
-              miningRate: Math.min(referrer.miningRate + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
-              referralsCount: referrer.referralsCount + 1,
-              referralEarnings: referrer.referralEarnings + REFERRAL_USDT_REWARD_UNITS,
+              balance: (referrer.balance || 0) + REFERRAL_USDT_REWARD_UNITS,
+              totalEarned: (referrer.totalEarned || 0) + REFERRAL_USDT_REWARD_UNITS,
+              miningRate: Math.min((referrer.miningRate || BASE_MINING_RATE) + REFERRAL_MINING_BONUS_UNITS, MAX_MINING_RATE),
+              referralsCount: (referrer.referralsCount || 0) + 1,
+              referralEarnings: (referrer.referralEarnings || 0) + REFERRAL_USDT_REWARD_UNITS,
               updatedAt: Date.now()
             }).where(eq(users.id, referrerId));
           });
@@ -419,7 +440,7 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
 });
 
 // Catch-all for unknown API routes - MUST be after all valid API routes
-app.all('/api/(.*)', (req, res) => {
+app.all('/api/*all', (req, res) => {
   console.log(`[API 404] ${req.method} ${req.url}`);
   res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
@@ -435,7 +456,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get(/^(?!\/api).*/, (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

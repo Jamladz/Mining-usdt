@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { syncUserToFirebase } from '../lib/firebase';
+import { syncUserToFirebase, getUserFromFirebase } from '../lib/firebase';
 import { User } from '../types';
 
 export interface TelegramUser {
@@ -313,6 +313,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Fetch Firestore backup if exists
+      let firestoreBackup = null;
+      try {
+        const userIdStr = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString();
+        if (userIdStr) {
+          firestoreBackup = await getUserFromFirebase(userIdStr);
+        }
+      } catch (e) {
+        console.warn('Failed to load user from Firestore backup:', e);
+      }
+
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: {
@@ -320,7 +331,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           'Authorization': initData
         },
         body: JSON.stringify({
-          start_param: startParam
+          start_param: startParam,
+          firestore_backup: firestoreBackup
         })
       });
 
