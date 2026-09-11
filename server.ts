@@ -156,7 +156,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
     // 2. Atomic Referral Processing
     if (referrerId && referrerId !== userId && (!user.referredBy || user.referredBy.trim() === '')) {
-      if (/^[0-9]{5,15}$/.test(referrerId)) {
+      if (/^[0-9]{5,25}$/.test(referrerId)) {
         try {
           await db.transaction(async (tx) => {
             const currentUserState = await tx.select().from(users).where(eq(users.id, userId)).get();
