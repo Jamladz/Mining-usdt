@@ -5,6 +5,7 @@ import { formatUSDT, CLAIM_COOLDOWN_MS } from '../lib/utils';
 import { USDT } from "../components/USDT";
 import { Pickaxe, Timer, Sparkles, Zap, Users, History, ArrowUpRight, Loader2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { syncHistoryToFirebase } from '../lib/firebase';
 
 export function HomeTab() {
   const { user, setUser, fetchUser, initData } = useApp();
@@ -38,6 +39,9 @@ export function HomeTab() {
       const data = await res.json();
       if (data.history) {
         setHistory(data.history);
+        if (user?.id) {
+          syncHistoryToFirebase(user.id, 'miningClaimsHistory', data.history);
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch mining history, using simulation fallback.', e);

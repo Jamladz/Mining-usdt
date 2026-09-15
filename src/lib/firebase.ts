@@ -52,6 +52,19 @@ export async function getUserFromFirebase(userId: string) {
   }
 }
 
+export async function syncHistoryToFirebase(userId: string, historyKey: 'miningClaimsHistory' | 'withdrawalsHistory', historyData: any[]) {
+  if (!userId || !historyKey || !historyData) return;
+  try {
+    const userDocRef = doc(db, 'users', userId.toString());
+    await setDoc(userDocRef, {
+      [historyKey]: JSON.stringify(historyData)
+    }, { merge: true });
+    console.log(`[FIREBASE] Synced ${historyKey} successfully`);
+  } catch (err) {
+    console.warn(`[FIREBASE] Failed to sync ${historyKey}:`, err);
+  }
+}
+
 /**
  * Look up a Telegram user by their Telegram ID in Firestore.
  */

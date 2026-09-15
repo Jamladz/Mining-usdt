@@ -17,7 +17,7 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
 const BASE_MINING_RATE = 1000; // 0.10 USDT per day base
 const MAX_MINING_RATE = 100000; // 10.00 USDT per day max
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
-const MIN_WITHDRAWAL = 30000; // 3 USDT
+const MIN_WITHDRAWAL = 60000; // 6 USDT
 
 // Utility: Validate Telegram initData
 function validateInitData(initData: string): any {
@@ -133,25 +133,66 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     if (!user) {
       isNewUserFlag = true;
       const backup = req.body.firestore_backup;
+      
       try {
-        user = await db.insert(users).values({
-          id: userId,
-          username: tgUser.username || backup?.username || '',
-          firstName: tgUser.first_name || backup?.firstName || '',
-          photoUrl: tgUser.photo_url || backup?.photoUrl || '',
-          referralCode: userId,
-          balance: backup?.balance ?? 0,
-          totalEarned: backup?.totalEarned ?? 0,
-          totalWithdrawn: backup?.totalWithdrawn ?? 0,
-          miningRate: backup?.miningRate ?? BASE_MINING_RATE,
-          referralsCount: backup?.referralsCount ?? 0,
-          referralEarnings: backup?.referralEarnings ?? 0,
-          claimedWelcome: backup?.claimedWelcome ?? 0,
-          createdAt: Date.now()
-        }).returning().get();
+        await db.transaction(async (tx) => {
+          user = await tx.insert(users).values({
+            id: userId,
+            username: tgUser.username || backup?.username || '',
+            firstName: tgUser.first_name || backup?.firstName || '',
+            photoUrl: tgUser.photo_url || backup?.photoUrl || '',
+            referralCode: userId,
+            balance: backup?.balance ?? 0,
+            totalEarned: backup?.totalEarned ?? 0,
+            totalWithdrawn: backup?.totalWithdrawn ?? 0,
+            miningRate: backup?.miningRate ?? BASE_MINING_RATE,
+            referralsCount: backup?.referralsCount ?? 0,
+            referralEarnings: backup?.referralEarnings ?? 0,
+            claimedWelcome: backup?.claimedWelcome ?? 0,
+            createdAt: Date.now()
+          }).returning().get();
+
+          // Restore Mining History if exists in backup
+          if (backup?.miningClaimsHistory) {
+            try {
+              const parsedMining = JSON.parse(backup.miningClaimsHistory);
+              if (Array.isArray(parsedMining) && parsedMining.length > 0) {
+                for (const claim of parsedMining) {
+                  await tx.insert(miningClaims).values({
+                    userId: userId,
+                    amount: claim.amount,
+                    claimedAt: claim.claimedAt
+                  });
+                }
+              }
+            } catch (e) {
+              console.warn(`[AUTH] Failed to parse miningClaimsHistory for ${userId}`);
+            }
+          }
+
+          // Restore Withdrawals History if exists in backup
+          if (backup?.withdrawalsHistory) {
+            try {
+              const parsedWds = JSON.parse(backup.withdrawalsHistory);
+              if (Array.isArray(parsedWds) && parsedWds.length > 0) {
+                for (const wd of parsedWds) {
+                  await tx.insert(withdrawals).values({
+                    userId: userId,
+                    amount: wd.amount,
+                    walletAddress: wd.walletAddress,
+                    status: wd.status,
+                    createdAt: wd.createdAt
+                  });
+                }
+              }
+            } catch (e) {
+              console.warn(`[AUTH] Failed to parse withdrawalsHistory for ${userId}`);
+            }
+          }
+        });
         console.log(`[AUTH] New user created (restored from Firestore backup): ${userId}`);
       } catch (err) {
-        console.warn(`[AUTH] Concurrent registration attempt for ${userId}`);
+        console.warn(`[AUTH] Concurrent registration attempt for ${userId}`, err);
         user = await db.select().from(users).where(eq(users.id, userId)).get();
         if (!user) return res.status(500).json({ error: 'Database error' });
       }

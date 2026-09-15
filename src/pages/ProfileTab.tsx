@@ -10,7 +10,8 @@ import { FAQSheet } from '../components/FAQSheet';
 import { referralService } from '../services/referralService';
 
 
-const MIN_WITHDRAWAL = 3;
+import { syncHistoryToFirebase } from "../lib/firebase";
+const MIN_WITHDRAWAL = 6;
 
 export function ProfileTab() {
   const { user, setUser, fetchUser, initData, homeScreenStatus, canAddToHomeScreen, addToHomeScreen, showToast } = useApp();
@@ -44,7 +45,12 @@ export function ProfileTab() {
         headers: { 'Authorization': initData || '' }
       });
       const data = await res.json();
-      if (data.history) setHistory(data.history);
+      if (data.history) {
+        setHistory(data.history);
+        if (user?.id) {
+          syncHistoryToFirebase(user.id, 'withdrawalsHistory', data.history);
+        }
+      }
     } catch (e) {
       console.error(e);
     }
@@ -248,12 +254,25 @@ export function ProfileTab() {
 
           <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
             <div className="space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex flex-wrap items-center gap-1">Amount <span className="lowercase font-medium tracking-normal text-slate-400 ml-1 inline-flex items-center gap-1">(Min: <USDT amount="3" size="text-[9px]" iconSize="w-3 h-3 inline-block -mt-0.5" />)</span></label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex flex-wrap items-center gap-1">
+                Amount 
+                <span className="lowercase font-medium tracking-normal text-slate-400 ml-1 inline-flex items-center gap-1">
+                  (Min: <USDT amount={MIN_WITHDRAWAL.toString()} size="text-[9px]" iconSize="w-3 h-3 inline-block -mt-0.5" />)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => showToast('The minimum withdrawal threshold has been increased to 6 USDT due to high withdrawal request volume.', 'info')}
+                  className="ml-1 flex items-center justify-center relative w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
+                >
+                  <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-30"></span>
+                  <HelpCircle className="w-3 h-3" />
+                </button>
+              </label>
               <div className="relative">
                 <input 
                   type="number"
                   step="0.0001"
-                  min="3"
+                  min={MIN_WITHDRAWAL}
                   disabled={!hasThreeReferrals}
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
