@@ -76,10 +76,8 @@ export function TasksTab() {
       if (data.success) {
         // Auto-complete parent task if final subtask completed
         let parentToComplete = '';
-        if (finalTaskId === 'adsgram_reward_2') parentToComplete = 'adsgram_reward';
-        else if (finalTaskId === 'adsgram_interstitial_5') parentToComplete = 'adsgram_interstitial';
-        else if (finalTaskId === 'monetag_rewarded_interstitial_5') parentToComplete = 'monetag_rewarded_interstitial';
-        else if (finalTaskId === 'monetag_rewarded_popup_5') parentToComplete = 'monetag_rewarded_popup';
+        if (finalTaskId === 'monetag_rewarded_interstitial_15') parentToComplete = 'monetag_rewarded_interstitial';
+        else if (finalTaskId === 'monetag_rewarded_popup_15') parentToComplete = 'monetag_rewarded_popup';
 
         let updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
 
@@ -117,10 +115,8 @@ export function TasksTab() {
       console.warn('Backend not available, using local simulation for task completion');
       
       let parentToComplete = '';
-      if (finalTaskId === 'adsgram_reward_2') parentToComplete = 'adsgram_reward';
-      else if (finalTaskId === 'adsgram_interstitial_5') parentToComplete = 'adsgram_interstitial';
-      else if (finalTaskId === 'monetag_rewarded_interstitial_5') parentToComplete = 'monetag_rewarded_interstitial';
-      else if (finalTaskId === 'monetag_rewarded_popup_5') parentToComplete = 'monetag_rewarded_popup';
+      if (finalTaskId === 'monetag_rewarded_interstitial_15') parentToComplete = 'monetag_rewarded_interstitial';
+      else if (finalTaskId === 'monetag_rewarded_popup_15') parentToComplete = 'monetag_rewarded_popup';
 
       let updatedList = [...completedTasksList.filter(c => c.taskId !== finalTaskId), completionObj];
       if (parentToComplete) {
@@ -140,27 +136,6 @@ export function TasksTab() {
       showToast('Task completed! Mining speed boosted (Demo Mode).', 'success');
     }
   };
-
-  // Listen to adsgram-task custom element rewards
-  useEffect(() => {
-    const el = document.getElementById('adsgram-task-component');
-    if (el) {
-      const handleReward = () => {
-        console.log('Adsgram Task reward triggered!');
-        triggerBackendTaskCompletion('adsgram_task', 'adsgram', 300);
-      };
-      const handleError = (e: any) => {
-        console.warn('Adsgram Task element error:', e);
-      };
-      
-      el.addEventListener('reward', handleReward);
-      el.addEventListener('onError', handleError);
-      return () => {
-        el.removeEventListener('reward', handleReward);
-        el.removeEventListener('onError', handleError);
-      };
-    }
-  });
 
   useEffect(() => {
     if (user?.completedTasks) {
@@ -265,31 +240,14 @@ export function TasksTab() {
       };
     }
     
-    if (taskId === 'adsgram_reward') {
-      return getMultiTaskInfo('adsgram_reward', 2);
-    }
-
-    if (taskId === 'adsgram_interstitial') {
-      return getMultiTaskInfo('adsgram_interstitial', 5);
-    }
-
     if (taskId === 'monetag_rewarded_interstitial') {
-      return getMultiTaskInfo('monetag_rewarded_interstitial', 5);
+      return getMultiTaskInfo('monetag_rewarded_interstitial', 15);
     }
 
     if (taskId === 'monetag_rewarded_popup') {
-      return getMultiTaskInfo('monetag_rewarded_popup', 5);
+      return getMultiTaskInfo('monetag_rewarded_popup', 15);
     }
 
-    if (taskId === 'monetag_inapp_interstitial') {
-      const status = getTaskStatus(taskId);
-      return {
-        isCompleted: status.isCompleted,
-        timeLeft: status.timeLeft,
-        subLabel: 'Watch an in-app interstitial ad.'
-      };
-    }
-    
     // Normal tasks
     const status = getTaskStatus(taskId);
     return {
@@ -322,9 +280,6 @@ export function TasksTab() {
       return;
     }
 
-    // Ignore native Adsgram Task since it has its own HTML element handling
-    if (task.id === 'adsgram_task') return;
-
     // Trigger Telegram click haptic feedback
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.HapticFeedback) {
@@ -345,12 +300,12 @@ export function TasksTab() {
       if (task.id === 'monetag_rewarded_interstitial') {
         const parentRecord = completedTasksList.find(t => t.taskId === 'monetag_rewarded_interstitial');
         const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
-        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => {
+        const completedSubtasks = Array.from({ length: 15 }, (_, i) => i + 1).filter(num => {
           const r = completedTasksList.find(t => t.taskId === `monetag_rewarded_interstitial_${num}`);
           return r && r.completedAt > lastParentTime;
         });
         const nextNum = completedSubtasks.length + 1;
-        if (nextNum > 5) {
+        if (nextNum > 15) {
           setLoadingTask(null);
           return;
         }
@@ -367,12 +322,12 @@ export function TasksTab() {
       } else if (task.id === 'monetag_rewarded_popup') {
         const parentRecord = completedTasksList.find(t => t.taskId === 'monetag_rewarded_popup');
         const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
-        const completedSubtasks = [1, 2, 3, 4, 5].filter(num => {
+        const completedSubtasks = Array.from({ length: 15 }, (_, i) => i + 1).filter(num => {
           const r = completedTasksList.find(t => t.taskId === `monetag_rewarded_popup_${num}`);
           return r && r.completedAt > lastParentTime;
         });
         const nextNum = completedSubtasks.length + 1;
-        if (nextNum > 5) {
+        if (nextNum > 15) {
           setLoadingTask(null);
           return;
         }
@@ -386,58 +341,14 @@ export function TasksTab() {
         } finally {
           setLoadingTask(null);
         }
-      } else if (task.id === 'monetag_inapp_interstitial') {
-        try {
-          await showAd({
-            type: 'inApp',
-            inAppSettings: {
-              frequency: 2,
-              capping: 0.1,
-              interval: 30,
-              timeout: 5,
-              everyPage: false
-            }
-          });
-          await triggerBackendTaskCompletion('monetag_inapp_interstitial', 'monetag', 100);
-        } catch (error) {
-          console.warn('Monetag In-App Interstitial error/dismissed:', error);
-          showToast('Failed to show the in-app interstitial. Please try again!', 'error');
-        } finally {
-          setLoadingTask(null);
-        }
       }
       return;
     }
 
     let finalTaskId = task.id;
-    let blockId = '';
     let rewardRateBoost = 100;
 
-    if (task.id === 'adsgram_reward') {
-      blockId = '46657'; // Adsgram Reward Block ID (Pure number as string)
-      const parentRecord = completedTasksList.find(t => t.taskId === 'adsgram_reward');
-      const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
-      const completedSubtasks = [1, 2].filter(num => {
-        const r = completedTasksList.find(t => t.taskId === `adsgram_reward_${num}`);
-        return r && r.completedAt > lastParentTime;
-      });
-      const nextNum = completedSubtasks.length + 1;
-      if (nextNum > 2) return;
-      finalTaskId = `adsgram_reward_${nextNum}`;
-      rewardRateBoost = 200;
-    } else if (task.id === 'adsgram_interstitial') {
-      blockId = 'int-46658'; // Adsgram Interstitial Block ID (Requires 'int-' prefix)
-      const parentRecord = completedTasksList.find(t => t.taskId === 'adsgram_interstitial');
-      const lastParentTime = parentRecord ? parentRecord.completedAt : 0;
-      const completedSubtasks = [1, 2, 3, 4, 5].filter(num => {
-        const r = completedTasksList.find(t => t.taskId === `adsgram_interstitial_${num}`);
-        return r && r.completedAt > lastParentTime;
-      });
-      const nextNum = completedSubtasks.length + 1;
-      if (nextNum > 5) return;
-      finalTaskId = `adsgram_interstitial_${nextNum}`;
-      rewardRateBoost = 100;
-    } else if (task.id === 'sys_add_home') {
+    if (task.id === 'sys_add_home') {
       rewardRateBoost = 500;
     }
 
@@ -446,53 +357,12 @@ export function TasksTab() {
     }
 
     setLoadingTask(task.id);
-
-    // Adsgram official Ad controller invocation
-    if (blockId) {
-      const adsgramLib = (window as any).Adsgram;
-      if (adsgramLib) {
-        try {
-          const AdController = adsgramLib.init({ blockId });
-          await AdController.show();
-          console.log('Adsgram Ad completed successfully');
-        } catch (error: any) {
-          console.warn('Adsgram Ad closed, skipped, or failed:', error);
-          showToast('Ad completed! Syncing your mining reward now...', 'success');
-        }
-      } else {
-        console.warn('Adsgram SDK not loaded or blocked, using fallback simulation');
-      }
-    }
     
     setTimeout(async () => {
       await triggerBackendTaskCompletion(finalTaskId, task.provider, rewardRateBoost);
       setLoadingTask(null);
     }, 1000);
   };
-
-  const adsgramTasks: Task[] = [
-    { 
-      id: 'adsgram_reward', 
-      title: 'Adsgram Reward Video', 
-      provider: 'adsgram', 
-      icon: <MonitorPlay className="w-5 h-5" />,
-      rewardValue: '0.02'
-    },
-    { 
-      id: 'adsgram_interstitial', 
-      title: 'Adsgram Interstitial Ad', 
-      provider: 'adsgram', 
-      icon: <Play className="w-5 h-5" />,
-      rewardValue: '0.01'
-    },
-    { 
-      id: 'adsgram_task', 
-      title: 'Adsgram Task Ad', 
-      provider: 'adsgram', 
-      icon: <Smartphone className="w-5 h-5" />,
-      rewardValue: '0.03'
-    }
-  ];
 
   const monetagTasks: Task[] = [
     {
@@ -508,13 +378,6 @@ export function TasksTab() {
       provider: 'monetag',
       icon: <MousePointerClick className="w-5 h-5" />,
       rewardValue: '0.02'
-    },
-    {
-      id: 'monetag_inapp_interstitial',
-      title: 'In-App Interstitial',
-      provider: 'monetag',
-      icon: <Smartphone className="w-5 h-5" />,
-      rewardValue: '0.01'
     }
   ];
 
@@ -535,31 +398,6 @@ export function TasksTab() {
     const { isCompleted, timeLeft, subLabel } = getTaskStatusInfo(task.id);
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
-    
-    if (task.id === 'adsgram_task' && !isCompleted) {
-      return (
-        <motion.div 
-          key={task.id} 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.05 }}
-          className="p-3 rounded-2xl border mb-2 bg-white border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgb(0,0,0,0.04)]"
-        >
-          {React.createElement('adsgram-task', {
-            id: 'adsgram-task-component',
-            'data-block-id': 'task-46660',
-            style: {
-              display: 'block',
-              width: '100%',
-              fontFamily: 'inherit',
-              '--adsgram-task-font-size': '13px',
-              '--adsgram-task-icon-size': '40px',
-              '--adsgram-task-icon-border-radius': '12px'
-            }
-          })}
-        </motion.div>
-      );
-    }
 
     return (
       <motion.div 
@@ -668,13 +506,7 @@ export function TasksTab() {
             {activeSysTasks.map((t, i) => renderTask(t, i))}
           </motion.section>
 
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">AdsGram Offers</h3>
-            </div>
-            {adsgramTasks.map((t, i) => renderTask(t, i))}
-          </motion.section>
+
 
           <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
             <div className="flex items-center gap-2 mb-3 px-1">
