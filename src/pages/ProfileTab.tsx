@@ -531,17 +531,17 @@ export function ProfileTab() {
       {/* 75% Sliding Bottom Sheet for NFT Purchase Details */}
       <AnimatePresence>
         {selectedNft && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/70 backdrop-blur-sm">
             {/* Click backdrop to close */}
             <div className="absolute inset-0" onClick={() => setSelectedNft(null)}></div>
             
-            {/* Bottom Sheet container, covering exactly 75% of height */}
+            {/* Bottom Sheet container, covering exactly 75% of height with z-[100] above bottom nav */}
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-              className="w-full max-w-md bg-white rounded-t-[32px] p-6 shadow-2xl border-t border-slate-100 flex flex-col h-[75vh] relative z-10 overflow-hidden"
+              className="w-full max-w-md bg-white rounded-t-[32px] p-6 pb-9 sm:pb-6 shadow-2xl border-t border-slate-100 flex flex-col h-[75vh] relative z-10 overflow-hidden"
             >
               {/* Grab handle/indicator */}
               <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-4 shrink-0"></div>
