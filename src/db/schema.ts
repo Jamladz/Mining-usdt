@@ -15,6 +15,7 @@ export const users = sqliteTable('users', {
   referralEarnings: integer('referral_earnings').default(0), // scaled by 10000 (+0.10 USDT = 1000)
   claimedWelcome: integer('claimed_welcome').default(0),
   lastClaimAt: integer('last_claim_at'),
+  hasNft: integer('has_nft').default(0),
   createdAt: integer('created_at').default(Date.now()),
   updatedAt: integer('updated_at').default(Date.now()),
 });

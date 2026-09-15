@@ -13,6 +13,7 @@ import { ProfileTab } from './pages/ProfileTab';
 import { WelcomeBonusSheet } from './components/WelcomeBonusSheet';
 import { AnimatePresence, motion } from 'motion/react';
 import { referralService } from './services/referralService';
+import { TonConnectUIProvider } from '@tonconnect/ui-react';
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState('home');
@@ -97,9 +98,12 @@ function AppContent() {
 }
 
 export default function App() {
+  const manifestUrl = typeof window !== 'undefined' ? `${window.location.origin}/tonconnect-manifest.json` : '';
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <TonConnectUIProvider manifestUrl={manifestUrl}>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </TonConnectUIProvider>
   );
 }

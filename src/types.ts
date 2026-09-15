@@ -17,6 +17,7 @@ export interface User {
   claimedMilestones?: number[];
   lastClaimAt?: number;
   claimedWelcome?: number;
+  hasNft?: number;
   createdAt: number;
   completedTasks?: string;
 }

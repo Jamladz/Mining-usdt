@@ -306,8 +306,8 @@ export function HomeTab() {
                 <History className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-bold text-sm text-slate-900 tracking-tight">Mining History</h3>
-                <p className="text-[10px] text-slate-400 font-medium">Your recent claim records</p>
+                <h3 className="font-bold text-sm text-slate-900 tracking-tight">Your recent claim records</h3>
+                <p className="text-[10px] text-slate-400 font-medium">History of your mining sessions</p>
               </div>
             </div>
             {history.length > 0 && (

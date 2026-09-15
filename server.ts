@@ -149,6 +149,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
             referralsCount: backup?.referralsCount ?? 0,
             referralEarnings: backup?.referralEarnings ?? 0,
             claimedWelcome: backup?.claimedWelcome ?? 0,
+            hasNft: backup?.hasNft ?? 0,
             createdAt: Date.now()
           }).returning().get();
 
@@ -161,7 +162,8 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
                   await tx.insert(miningClaims).values({
                     userId: userId,
                     amount: claim.amount,
-                    claimedAt: claim.claimedAt
+                    claimedAt: claim.claimedAt,
+                    nextClaimAt: claim.nextClaimAt ?? (claim.claimedAt + 24 * 60 * 60 * 1000)
                   });
                 }
               }
@@ -413,6 +415,26 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   res.json({ success: true, newRate });
 });
 
+app.post('/api/purchase-nft', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
+  const NFT_BOOST = 10000; // +1.00 USDT/day rate boost!
+  const newRate = Math.min(user.miningRate + NFT_BOOST, MAX_MINING_RATE);
+  
+  await db.transaction(async (tx) => {
+    await tx.update(users).set({ 
+      hasNft: 1, 
+      miningRate: newRate 
+    }).where(eq(users.id, userId));
+  });
+
+  const updatedUser = await getFormattedUser(userId);
+  res.json({ success: true, user: updatedUser });
+});
+
 app.get('/api/tasks', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const completed = await db.select().from(taskCompletions).where(eq(taskCompletions.userId, userId)).all();
@@ -424,13 +446,13 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   const { amount, walletAddress } = req.body;
   
   if (!amount || !walletAddress) return res.status(400).json({ error: 'Missing withdrawal details' });
-  if (amount < MIN_WITHDRAWAL) return res.status(400).json({ error: 'Minimum withdrawal is 3 USDT' });
+  if (amount < MIN_WITHDRAWAL) return res.status(400).json({ error: 'Minimum withdrawal is 6 USDT' });
 
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  if (user.referralsCount < 3) {
-    return res.status(400).json({ error: 'You must refer at least 3 active friends to withdraw funds.' });
+  if (!user.hasNft || user.hasNft !== 1) {
+    return res.status(400).json({ error: 'You must purchase at least the Level 1 NFT to enable withdrawals.' });
   }
 
   if (user.balance < amount) return res.status(400).json({ error: 'Insufficient balance' });
