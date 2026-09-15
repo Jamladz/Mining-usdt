@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../components/Header';
 import { USDT } from '../components/USDT';
 import { useApp } from '../context/AppContext';
-import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift, BookmarkPlus } from 'lucide-react';
+import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift, BookmarkPlus, Send } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -174,8 +174,8 @@ export function TasksTab() {
     const record = completedTasksList.find(t => t.taskId === taskId);
     if (!record) return { isCompleted: false, timeLeft: 0 };
     
-    // For sys_add_home, it is completed once in history and never resets
-    if (taskId === 'sys_add_home') {
+    // For sys_add_home and sys_join_ainovum, it is completed once in history and never resets
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum') {
       return { isCompleted: true, timeLeft: 999999999 };
     }
     
@@ -231,8 +231,8 @@ export function TasksTab() {
   };
 
   const getTaskStatusInfo = (taskId: string) => {
-    if (taskId === 'sys_add_home') {
-      const status = getTaskStatus('sys_add_home');
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum') {
+      const status = getTaskStatus(taskId);
       return {
         isCompleted: status.isCompleted,
         timeLeft: status.timeLeft,
@@ -277,6 +277,24 @@ export function TasksTab() {
         addToHomeScreen();
         showToast('Please add the app to your Home Screen, then click CLAIM to receive your +0.30 USDT/day boost!', 'info');
       }
+      return;
+    }
+
+    if (task.id === 'sys_join_ainovum') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after a short delay so the user has time to open the link
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_ainovum', 'system', 1000);
+          showToast('🎉 Joined AI Novum Bot successfully! Boosted rate by +0.10 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 3000);
       return;
     }
 
@@ -383,6 +401,22 @@ export function TasksTab() {
 
   const sysTasks: Task[] = [
     { 
+      id: 'sys_join_ainovum', 
+      title: 'Join AI Novum Bot', 
+      provider: 'system', 
+      icon: <Send className="w-5 h-5" />,
+      rewardValue: '0.10',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/ainovum_bot?start=ref_1368899842&startapp=ref_1368899842';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_add_home', 
       title: 'Add to Home Screen', 
       provider: 'system', 
@@ -442,7 +476,7 @@ export function TasksTab() {
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                 <span>COMPLETED</span>
               </div>
-              {task.id !== 'sys_add_home' && timeLeft > 0 && (
+              {!['sys_add_home', 'sys_join_ainovum'].includes(task.id) && timeLeft > 0 && (
                 <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
