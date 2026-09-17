@@ -14,19 +14,44 @@ export function BottomNav({ currentTab, setCurrentTab }: BottomNavProps) {
 
   const getInitials = () => {
     if (!user) return 'US';
-    const name = user.username || user.firstName || 'User';
-    // Clean and split
-    const cleanName = name.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+    
+    const first = (user.firstName || '').trim();
+    const last = (user.lastName || '').trim();
+    if (first && last) {
+      return (first[0] + last[0]).toUpperCase();
+    }
+
+    const name = first || user.username || 'User';
+    const cleanName = name.replace(/[^a-zA-Z0-9\s_.]/g, '').trim();
     if (!cleanName) {
-      // Fallback for non-latin or empty
       const rawName = name.trim();
       return rawName.length >= 2 ? rawName.slice(0, 2).toUpperCase() : 'US';
     }
-    const parts = cleanName.split(/\s+/);
+
+    const parts = cleanName.split(/[\s_.]+/);
     if (parts.length >= 2 && parts[0] && parts[1]) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
+    
     return cleanName.slice(0, 2).toUpperCase();
+  };
+
+  const getTelegramGradient = (name: string) => {
+    const gradients = [
+      'bg-gradient-to-tr from-blue-500 to-sky-600 text-white shadow-[0_2px_10px_rgba(56,189,248,0.2)]',      // Telegram Blue
+      'bg-gradient-to-tr from-indigo-500 to-purple-600 text-white shadow-[0_2px_10px_rgba(168,85,247,0.2)]',  // Violet
+      'bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-[0_2px_10px_rgba(16,185,129,0.2)]',    // Teal
+      'bg-gradient-to-tr from-amber-500 to-orange-600 text-white shadow-[0_2px_10px_rgba(245,158,11,0.2)]',    // Orange
+      'bg-gradient-to-tr from-rose-500 to-pink-600 text-white shadow-[0_2px_10px_rgba(244,63,94,0.2)]',       // Rose
+      'bg-gradient-to-tr from-cyan-500 to-blue-600 text-white shadow-[0_2px_10px_rgba(6,182,212,0.2)]'         // Cyan
+    ];
+    let hash = 0;
+    const key = name || 'User';
+    for (let i = 0; i < key.length; i++) {
+      hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % gradients.length;
+    return gradients[index];
   };
 
   const navItems = [
@@ -36,6 +61,7 @@ export function BottomNav({ currentTab, setCurrentTab }: BottomNavProps) {
   ];
 
   const isProfileActive = currentTab === 'profile';
+  const nameForGradient = user?.firstName || user?.username || 'User';
 
   return (
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 w-[calc(100%-32px)] max-w-md flex items-center gap-3 z-50">
@@ -80,19 +106,28 @@ export function BottomNav({ currentTab, setCurrentTab }: BottomNavProps) {
       <button
         onClick={() => setCurrentTab('profile')}
         className={cn(
-          "w-[64px] h-[64px] shrink-0 rounded-full border flex items-center justify-center transition-all duration-300 relative shadow-[0_12px_36px_rgba(0,0,0,0.12)] backdrop-blur-md group",
+          "w-[64px] h-[64px] shrink-0 rounded-full border-2 flex items-center justify-center transition-all duration-300 relative shadow-[0_12px_36px_rgba(0,0,0,0.12)] backdrop-blur-md overflow-hidden p-1 bg-white",
           isProfileActive
-            ? "bg-emerald-600 border-emerald-500 text-white"
-            : "bg-white/95 border-slate-200/85 text-slate-700 hover:text-emerald-600 hover:border-emerald-200/50"
+            ? "border-emerald-500 scale-105"
+            : "border-slate-200/85 hover:border-emerald-400"
         )}
       >
-        <div className={cn(
-          "w-full h-full rounded-full flex items-center justify-center text-[15px] font-black tracking-normal transition-all",
-          isProfileActive
-            ? "bg-emerald-600 text-white shadow-inner"
-            : "bg-emerald-50 text-emerald-700 group-hover:bg-emerald-100"
-        )}>
-          {getInitials()}
+        <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center select-none">
+          {user?.photoUrl ? (
+            <img 
+              src={user.photoUrl} 
+              alt="Profile" 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className={cn(
+              "w-full h-full flex items-center justify-center text-[14px] font-black tracking-wide uppercase transition-all duration-300",
+              getTelegramGradient(nameForGradient)
+            )}>
+              {getInitials()}
+            </div>
+          )}
         </div>
       </button>
     </div>

@@ -44,6 +44,50 @@ export function ProfileTab() {
   const totalReferrals = Math.max(user?.referralsCount || 0, liveReferralsCount);
   const hasThreeReferrals = totalReferrals >= 3;
 
+  const getInitials = () => {
+    if (!user) return 'US';
+    
+    const first = (user.firstName || '').trim();
+    const last = (user.lastName || '').trim();
+    if (first && last) {
+      return (first[0] + last[0]).toUpperCase();
+    }
+
+    const name = first || user.username || 'User';
+    const cleanName = name.replace(/[^a-zA-Z0-9\s_.]/g, '').trim();
+    if (!cleanName) {
+      const rawName = name.trim();
+      return rawName.length >= 2 ? rawName.slice(0, 2).toUpperCase() : 'US';
+    }
+
+    const parts = cleanName.split(/[\s_.]+/);
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    
+    return cleanName.slice(0, 2).toUpperCase();
+  };
+
+  const getTelegramGradient = (name: string) => {
+    const gradients = [
+      'bg-gradient-to-tr from-blue-500 to-sky-600 text-white',      // Telegram Blue
+      'bg-gradient-to-tr from-indigo-500 to-purple-600 text-white',  // Violet
+      'bg-gradient-to-tr from-emerald-500 to-teal-600 text-white',    // Teal
+      'bg-gradient-to-tr from-amber-500 to-orange-600 text-white',    // Orange
+      'bg-gradient-to-tr from-rose-500 to-pink-600 text-white',       // Rose
+      'bg-gradient-to-tr from-cyan-500 to-blue-600 text-white'         // Cyan
+    ];
+    let hash = 0;
+    const key = name || 'User';
+    for (let i = 0; i < key.length; i++) {
+      hash = key.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % gradients.length;
+    return gradients[index];
+  };
+
+  const nameForGradient = user?.firstName || user?.username || 'User';
+
   const handlePurchase = async (nft: any) => {
     if (!currentTonAddress) {
       showToast('Please connect your TON wallet first using the Connect button above!', 'error');
@@ -205,8 +249,11 @@ export function ProfileTab() {
             {user?.photoUrl ? (
               <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-2xl uppercase">
-                {user?.firstName?.[0] || 'U'}
+              <div className={cn(
+                "w-full h-full flex items-center justify-center font-black text-xl uppercase tracking-wide",
+                getTelegramGradient(nameForGradient)
+              )}>
+                {getInitials()}
               </div>
             )}
           </div>
