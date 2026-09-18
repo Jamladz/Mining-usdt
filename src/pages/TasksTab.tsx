@@ -266,8 +266,8 @@ export function TasksTab() {
       if (homeScreenStatus === 'added') {
         setLoadingTask(task.id);
         try {
-          await triggerBackendTaskCompletion('sys_add_home', 'system', 3000);
-          showToast('🎉 Added to Home Screen successfully! Boosted rate by +0.30 USDT/day.', 'success');
+          await triggerBackendTaskCompletion('sys_add_home', 'system', 300);
+          showToast('🎉 Added to Home Screen successfully! Boosted rate by +0.03 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -275,7 +275,7 @@ export function TasksTab() {
         }
       } else {
         addToHomeScreen();
-        showToast('Please add the app to your Home Screen, then click CLAIM to receive your +0.30 USDT/day boost!', 'info');
+        showToast('Please add the app to your Home Screen, then click CLAIM to receive your +0.03 USDT/day boost!', 'info');
       }
       return;
     }
@@ -287,8 +287,8 @@ export function TasksTab() {
       // Complete after a short delay so the user has time to open the link
       setTimeout(async () => {
         try {
-          await triggerBackendTaskCompletion('sys_join_ainovum', 'system', 1000);
-          showToast('🎉 Joined AI Novum Bot successfully! Boosted rate by +0.10 USDT/day.', 'success');
+          await triggerBackendTaskCompletion('sys_join_ainovum', 'system', 100);
+          showToast('🎉 Joined AI Novum Bot successfully! Boosted rate by +0.01 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -305,8 +305,8 @@ export function TasksTab() {
       // Complete after a short delay so the user has time to open the link
       setTimeout(async () => {
         try {
-          await triggerBackendTaskCompletion('sys_join_hot_labs', 'system', 1000);
-          showToast('🎉 Joined Hot Labs successfully! Boosted rate by +0.10 USDT/day.', 'success');
+          await triggerBackendTaskCompletion('sys_join_hot_labs', 'system', 100);
+          showToast('🎉 Joined Hot Labs successfully! Boosted rate by +0.01 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -348,7 +348,7 @@ export function TasksTab() {
 
         try {
           await showAd();
-          await triggerBackendTaskCompletion(`monetag_rewarded_interstitial_${nextNum}`, 'monetag', 300);
+          await triggerBackendTaskCompletion(`monetag_rewarded_interstitial_${nextNum}`, 'monetag', 30);
         } catch (error) {
           console.warn('Monetag Rewarded Interstitial error/dismissed:', error);
           showToast('You must watch the advertisement completely to claim your reward!', 'error');
@@ -370,7 +370,7 @@ export function TasksTab() {
 
         try {
           await showAd('pop');
-          await triggerBackendTaskCompletion(`monetag_rewarded_popup_${nextNum}`, 'monetag', 200);
+          await triggerBackendTaskCompletion(`monetag_rewarded_popup_${nextNum}`, 'monetag', 20);
         } catch (error) {
           console.warn('Monetag Rewarded Popup error/dismissed:', error);
           showToast('You must interact with the advertisement completely to claim your reward!', 'error');
@@ -382,10 +382,10 @@ export function TasksTab() {
     }
 
     let finalTaskId = task.id;
-    let rewardRateBoost = 100;
+    let rewardRateBoost = 10;
 
     if (task.id === 'sys_add_home') {
-      rewardRateBoost = 500;
+      rewardRateBoost = 50;
     }
 
     if (task.action) {
@@ -406,14 +406,14 @@ export function TasksTab() {
       title: 'Watch an Ad',
       provider: 'monetag',
       icon: <MonitorPlay className="w-5 h-5" />,
-      rewardValue: '0.03'
+      rewardValue: '0.003'
     },
     {
       id: 'monetag_rewarded_popup',
       title: 'Watch Rewarded Popup',
       provider: 'monetag',
       icon: <MousePointerClick className="w-5 h-5" />,
-      rewardValue: '0.02'
+      rewardValue: '0.002'
     }
   ];
 
@@ -423,7 +423,7 @@ export function TasksTab() {
       title: 'Join AI Novum Bot', 
       provider: 'system', 
       icon: <Send className="w-5 h-5" />,
-      rewardValue: '0.10',
+      rewardValue: '0.01',
       action: () => {
         const tg = (window as any).Telegram?.WebApp;
         const link = 'https://t.me/ainovum_bot?start=ref_1368899842&startapp=ref_1368899842';
@@ -439,7 +439,7 @@ export function TasksTab() {
       title: 'Join Hot Labs', 
       provider: 'system', 
       icon: <Gift className="w-5 h-5" />,
-      rewardValue: '0.10',
+      rewardValue: '0.01',
       action: () => {
         const tg = (window as any).Telegram?.WebApp;
         const link = 'https://app.hot-labs.org/link?699428uu';
@@ -455,7 +455,7 @@ export function TasksTab() {
       title: 'Add to Home Screen', 
       provider: 'system', 
       icon: <BookmarkPlus className="w-5 h-5" />,
-      rewardValue: '0.30',
+      rewardValue: '0.03',
       action: addToHomeScreen
     }
   ];

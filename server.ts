@@ -14,8 +14,8 @@ app.use(cors());
 
 const PORT = 3000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
-const BASE_MINING_RATE = 1000; // 0.10 USDT per day base
-const MAX_MINING_RATE = 100000; // 10.00 USDT per day max
+const BASE_MINING_RATE = 100; // 0.01 USDT per day base
+const MAX_MINING_RATE = 2000; // 0.20 USDT per day max
 const CLAIM_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MIN_WITHDRAWAL = 60000; // 6 USDT
 
@@ -288,7 +288,7 @@ app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
     return res.status(400).json({ error: 'Welcome bonus already claimed' });
   }
 
-  const WELCOME_BONUS_UNITS = 5000; // 0.50 USDT (10000 = 1.00 USDT)
+  const WELCOME_BONUS_UNITS = 1000; // 0.10 USDT (10000 = 1.00 USDT)
 
   await db.transaction(async (tx) => {
     await tx.update(users).set({
@@ -379,25 +379,25 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  let boostAmount = 100; // +0.01 USDT
+  let boostAmount = 10; // +0.001 USDT
   if (taskId === 'sys_add_home') {
-    boostAmount = 3000; // +0.30 USDT
+    boostAmount = 300; // +0.03 USDT
   } else if (taskId === 'sys_join_ainovum') {
-    boostAmount = 1000; // +0.10 USDT
+    boostAmount = 100; // +0.01 USDT
   } else if (taskId === 'sys_join_hot_labs') {
-    boostAmount = 1000; // +0.10 USDT
+    boostAmount = 100; // +0.01 USDT
   } else if (taskId.startsWith('adsgram_reward')) {
-    boostAmount = 200; // +0.02 USDT
+    boostAmount = 20; // +0.002 USDT
   } else if (taskId === 'adsgram_task') {
-    boostAmount = 300; // +0.03 USDT
+    boostAmount = 30; // +0.003 USDT
   } else if (taskId.startsWith('adsgram_interstitial')) {
-    boostAmount = 100; // +0.01 USDT
+    boostAmount = 10; // +0.001 USDT
   } else if (taskId.startsWith('monetag_rewarded_interstitial')) {
-    boostAmount = 300; // +0.03 USDT
+    boostAmount = 30; // +0.003 USDT
   } else if (taskId.startsWith('monetag_rewarded_popup')) {
-    boostAmount = 200; // +0.02 USDT
+    boostAmount = 20; // +0.002 USDT
   } else if (taskId.startsWith('monetag_inapp_interstitial')) {
-    boostAmount = 100; // +0.01 USDT
+    boostAmount = 10; // +0.001 USDT
   }
   
   const newRate = Math.min(user.miningRate + boostAmount, MAX_MINING_RATE);
@@ -423,7 +423,7 @@ app.post('/api/purchase-nft', requireUser, async (req: any, res: any) => {
   
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  const NFT_BOOST = 10000; // +1.00 USDT/day rate boost!
+  const NFT_BOOST = 1000; // +0.10 USDT/day rate boost!
   const newRate = Math.min(user.miningRate + NFT_BOOST, MAX_MINING_RATE);
   
   await db.transaction(async (tx) => {
