@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2 } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -21,6 +21,8 @@ export function ProfileTab() {
   const [history, setHistory] = useState<any[]>([]);
   const [isFAQOpen, setIsFAQOpen] = useState(false);
   const [liveReferralsCount, setLiveReferralsCount] = useState<number>(user?.referralsCount || 0);
+  const [showCongestionModal, setShowCongestionModal] = useState(false);
+  const [activeLangTab, setActiveLangTab] = useState<'EN' | 'AR' | 'RU' | 'FA'>('EN');
 
   const [tonConnectUI] = useTonConnectUI();
   const currentTonAddress = useTonAddress();
@@ -225,49 +227,8 @@ export function ProfileTab() {
       return;
     }
 
-    setIsWithdrawing(true);
-    
-    try {
-      const res = await fetch('/api/withdraw', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': initData || ''
-        },
-        body: JSON.stringify({ amount, walletAddress })
-      });
-      
-      const data = await res.json();
-      if (data.success) {
-         showToast('Withdrawal requested successfully. Admin review is underway.', 'success');
-        setWithdrawAmount('');
-        setWalletAddress('');
-        await fetchUser();
-        await fetchHistory();
-      } else {
-        showToast(data.error || 'Withdrawal request failed', 'error');
-      }
-    } catch (e) {
-      console.warn('Backend not available, using local simulation for withdrawal');
-      if (user) {
-        setUser({ 
-          ...user, 
-          balance: (user.balance || 0) - amount,
-          totalWithdrawn: (user.totalWithdrawn || 0) + amount 
-        });
-      }
-      setHistory([{
-        id: Math.random().toString(),
-        amount: amount,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      }, ...history]);
-      showToast('Withdrawal requested successfully (Simulation Mode).', 'success');
-      setWithdrawAmount('');
-      setWalletAddress('');
-    } finally {
-      setIsWithdrawing(false);
-    }
+    // Trigger the multi-lingual congestion notice modal!
+    setShowCongestionModal(true);
   };
 
   return (
@@ -726,10 +687,6 @@ export function ProfileTab() {
                     <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Total cost</span>
                     <p className="text-lg font-black text-slate-900">{selectedNft.price} TON</p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Destination wallet</span>
-                    <p className="text-[11px] font-black text-slate-700 font-mono">UQCTZA...tN1Ad3</p>
-                  </div>
                 </div>
 
                 {user?.hasNft === 1 && selectedNft.level === 1 ? (
@@ -760,6 +717,151 @@ export function ProfileTab() {
                     )}
                   </motion.button>
                 )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Multilingual Withdrawal Congestion Notice Modal */}
+      <AnimatePresence>
+        {showCongestionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCongestionModal(false)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+            ></motion.div>
+
+            {/* Modal Body */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', duration: 0.5 }}
+              className="relative bg-white rounded-[28px] max-w-sm w-full overflow-hidden border border-slate-100 shadow-[0_24px_50px_rgba(0,0,0,0.18)] flex flex-col z-10"
+            >
+              {/* Header warning gradient */}
+              <div className="bg-gradient-to-b from-amber-50 to-transparent p-6 pb-2 flex flex-col items-center text-center">
+                <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-3 relative">
+                  <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-15"></div>
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <h3 className="text-xs font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5 justify-center">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Network Status</span>
+                </h3>
+              </div>
+
+              {/* Multilingual Tabs */}
+              <div className="px-5 mb-4">
+                <div className="bg-slate-100/80 p-1 rounded-xl flex gap-1 text-[10px] font-black">
+                  {[
+                    { code: 'EN', label: '🇺🇸 EN' },
+                    { code: 'AR', label: '🇸🇦 AR' },
+                    { code: 'RU', label: '🇷🇺 RU' },
+                    { code: 'FA', label: '🇮🇷 FA' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.code}
+                      onClick={() => setActiveLangTab(tab.code as any)}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg transition-all text-center",
+                        activeLangTab === tab.code 
+                          ? "bg-slate-900 text-white shadow-sm" 
+                          : "text-slate-500 hover:bg-slate-200/50"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message Content with automatic RTL support */}
+              <div 
+                className={cn(
+                  "px-6 pb-6 min-h-[160px] flex flex-col justify-center",
+                  (activeLangTab === 'AR' || activeLangTab === 'FA') ? "text-right" : "text-left"
+                )}
+                dir={(activeLangTab === 'AR' || activeLangTab === 'FA') ? 'rtl' : 'ltr'}
+              >
+                <AnimatePresence mode="wait">
+                  {activeLangTab === 'EN' && (
+                    <motion.div
+                      key="EN"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="space-y-2"
+                    >
+                      <h4 className="text-[14px] font-black text-slate-900">System Congestion Notice</h4>
+                      <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+                        Due to an unprecedented volume of concurrent withdrawal requests on the TON blockchain, automatic withdrawals have been temporarily suspended to prevent transaction failures and queue blockages. The gateway is undergoing optimization and will be reopened shortly. Thank you for your patience.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {activeLangTab === 'AR' && (
+                    <motion.div
+                      key="AR"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="space-y-2"
+                    >
+                      <h4 className="text-[14px] font-black text-slate-900">تنبيه ازدحام النظام</h4>
+                      <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+                        بسبب حجم غير مسبوق من طلبات السحب المتزامنة على شبكة TON، تم تعليق السحوبات التلقائية مؤقتاً لمنع فشل المعاملات وازدحام الدور. تخضع بوابة الدفع حالياً للتحسينات وسيتم إعادة فتحها قريباً جداً. شكراً لتفهمكم وصبركم.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {activeLangTab === 'RU' && (
+                    <motion.div
+                      key="RU"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="space-y-2"
+                    >
+                      <h4 className="text-[14px] font-black text-slate-900">Уведомление о перегрузке системы</h4>
+                      <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+                        В связи с беспрецедентным объемом одновременных запросов на вывод средств в сети TON, автоматические выплаты временно приостановлены для предотвращения сбоев транзакций и блокировки очереди. Платежный шлюз оптимизируется и будет открыт в ближайшее время. Спасибо за терпение.
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {activeLangTab === 'FA' && (
+                    <motion.div
+                      key="FA"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      className="space-y-2"
+                    >
+                      <h4 className="text-[14px] font-black text-slate-900">اطلاعیه شلوغی شبکه</h4>
+                      <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
+                        به دلیل حجم بی‌سابقه درخواست‌های همزمان برداشت در شبکه TON، برداشت‌های خودکار به طور موقت متوقف شده‌اند تا از تراکنش‌های ناموفق و انسداد صف جلوگیری شود. درگاه پرداخت در حال بهینه‌سازی است و به زودی بازگشایی خواهد شد. از شکیبایی شما سپاسگزاریم.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Action Button */}
+              <div className="px-6 pb-6 pt-2">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowCongestionModal(false)}
+                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.1)] transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>ACKNOWLEDGE</span>
+                </motion.button>
               </div>
             </motion.div>
           </div>
