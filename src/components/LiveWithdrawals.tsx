@@ -13,24 +13,24 @@ interface WithdrawalRecord {
 }
 
 const ARABIC_USERS = [
-  '@ahmed_crypto', '@fatima_ton', '@youssef_usdt', '@amira_miner', '@omar_trx', 
-  '@saud_usdt', '@khaled_bin_walid', '@nadia_ton', '@layla_miner', '@zayd_trx',
-  '@rami_usdt', '@muna_ton', '@hassan_miner', '@reem_trx', '@tariq_usdt',
-  '@nour_crypto', '@faisal_ton', '@yasmeen_usdt', '@bassem_miner', '@hala_trx'
+  '@ahmed_dxb', '@faten_sy', '@youssef_99', '@abdallah_ali', '@mohamed_hr', 
+  '@saad_al_otaibi', '@sara_sh', '@khaled_j', '@nour_el_din', '@omar_gh', 
+  '@amina_dz', '@rami_beirut', '@mahmoud_eg', '@hassan_kwt', '@yasmin_kh', 
+  '@tareq_jo', '@faisal_ksa', '@reem_ad', '@moumen_tn', '@zainab_om'
 ];
 
 const RUSSIAN_USERS = [
-  '@vladimir_trx', '@elena_nod', '@dmitry_usdt', '@olga_ton', '@sergey_crypto',
-  '@sveta_miner', '@alex_nod', '@natasha_usdt', '@igor_trx', '@anya_ton',
-  '@dima_miner', '@katya_usdt', '@misha_trx', '@masha_ton', '@pavel_nod',
-  '@artem_crypto', '@sasha_ton', '@maxim_usdt', '@tanya_miner', '@kolya_trx'
+  '@vlad_spb', '@elena_k', '@dima_msc', '@olga_morozova', '@serg_ivanov', 
+  '@sveta_p', '@alex_smirnov', '@natasha_ru', '@igor_nn', '@anna_volkova', 
+  '@artem_92', '@katya_novosib', '@mikhail_s', '@masha_krasnodar', '@pavel_durov_fan', 
+  '@andrey_v', '@tanya_nsk', '@max_sokolov', '@yulia_sh', '@denis_kazan'
 ];
 
 const PERSIAN_USERS = [
-  '@reza_usdt', '@maryam_ton', '@ali_crypto', '@shahin_miner', '@sara_nod',
-  '@amir_trx', '@yasaman_usdt', '@farnaz_ton', '@pejman_trx', '@niloufar_miner',
-  '@arash_usdt', '@zahra_ton', '@bahram_crypto', '@negah_miner', '@sohrab_nod',
-  '@kian_crypto', '@elnaz_ton', '@dariush_usdt', '@vida_miner', '@pouya_trx'
+  '@reza_teh', '@maryam_kh', '@ali_karimi', '@shahin_esf', '@sara_ahb', 
+  '@amir_shiraz', '@yasaman_m', '@farnaz_g', '@pejman_r', '@nilou_kh', 
+  '@arash_sh', '@zahra_hoseini', '@bahram_y', '@sohrab_rezaei', '@kian_mehr', 
+  '@elnaz_mo', '@dariush_k', '@vida_jafari', '@pouya_farah', '@mehdi_karami'
 ];
 
 function generateRandomWallet(): string {
