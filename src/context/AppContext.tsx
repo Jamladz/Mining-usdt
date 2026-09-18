@@ -316,7 +316,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Fetch Firestore backup if exists
       let firestoreBackup = null;
       try {
-        const userIdStr = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString();
+        const getTelegramIdFromInitData = (initDataStr: string | null): string => {
+          if (!initDataStr) return '';
+          try {
+            const params = new URLSearchParams(initDataStr);
+            const userJson = params.get('user');
+            if (userJson) {
+              const parsed = JSON.parse(decodeURIComponent(userJson));
+              if (parsed && parsed.id) {
+                return parsed.id.toString();
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse Telegram user ID from initData', e);
+          }
+          return '';
+        };
+
+        const userIdStr = window.Telegram?.WebApp?.initDataUnsafe?.user?.id?.toString() || 
+                           getTelegramIdFromInitData(initData) ||
+                           tgData?.user?.id?.toString() || 
+                           user?.id?.toString();
         if (userIdStr) {
           firestoreBackup = await getUserFromFirebase(userIdStr);
         }

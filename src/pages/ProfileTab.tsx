@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { FAQSheet } from '../components/FAQSheet';
 import { referralService } from '../services/referralService';
-import { syncHistoryToFirebase } from "../lib/firebase";
+import { syncHistoryToFirebase, getUserFromFirebase } from "../lib/firebase";
 import { TonConnectButton, useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 
 const MIN_WITHDRAWAL = 6;
@@ -148,14 +148,52 @@ export function ProfileTab() {
         headers: { 'Authorization': initData || '' }
       });
       const data = await res.json();
-      if (data.history) {
+      
+      if (data.history && data.history.length > 0) {
         setHistory(data.history);
         if (user?.id) {
           syncHistoryToFirebase(user.id, 'withdrawalsHistory', data.history);
         }
+      } else {
+        // SQLite history is empty. Let's check if there is a backup in Firestore!
+        if (user?.id) {
+          const firestoreUser = await getUserFromFirebase(user.id);
+          if (firestoreUser && firestoreUser.withdrawalsHistory) {
+            try {
+              const parsed = JSON.parse(firestoreUser.withdrawalsHistory);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                console.log('[SYNC] Restoring withdrawals history from Firestore to SQLite');
+                setHistory(parsed);
+                
+                // Synchronize with the SQLite database so it has it too
+                const syncRes = await fetch('/api/withdrawals/sync', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': initData || ''
+                  },
+                  body: JSON.stringify({ history: parsed })
+                });
+                const syncData = await syncRes.json();
+                if (syncData.history) {
+                  setHistory(syncData.history);
+                }
+              } else {
+                setHistory([]);
+              }
+            } catch (e) {
+              console.warn('Failed to parse withdrawalsHistory from Firestore', e);
+              setHistory([]);
+            }
+          } else {
+            setHistory([]);
+          }
+        } else {
+          setHistory(data.history || []);
+        }
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed to fetch history', e);
     }
   };
 

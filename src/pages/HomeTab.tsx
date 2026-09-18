@@ -6,6 +6,7 @@ import { USDT } from "../components/USDT";
 import { Pickaxe, Timer, Sparkles, Zap, Users, History, ArrowUpRight, Loader2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { syncHistoryToFirebase } from '../lib/firebase';
+import { LiveWithdrawals } from '../components/LiveWithdrawals';
 
 export function HomeTab() {
   const { user, setUser, fetchUser, initData } = useApp();
@@ -292,6 +293,15 @@ export function HomeTab() {
             </div>
           </motion.div>
         </div>
+
+        {/* Live Withdrawals Feed */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <LiveWithdrawals />
+        </motion.div>
 
         {/* Premium Mining History */}
         <motion.div 

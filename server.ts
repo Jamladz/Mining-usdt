@@ -365,7 +365,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_ainovum'].includes(taskId)
+        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -383,6 +383,8 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   if (taskId === 'sys_add_home') {
     boostAmount = 3000; // +0.30 USDT
   } else if (taskId === 'sys_join_ainovum') {
+    boostAmount = 1000; // +0.10 USDT
+  } else if (taskId === 'sys_join_hot_labs') {
     boostAmount = 1000; // +0.10 USDT
   } else if (taskId.startsWith('adsgram_reward')) {
     boostAmount = 200; // +0.02 USDT
@@ -479,6 +481,53 @@ app.get('/api/withdrawals', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const history = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).all();
   res.json({ history });
+});
+
+app.post('/api/withdrawals/sync', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const { history } = req.body;
+  if (!Array.isArray(history)) {
+    return res.status(400).json({ error: 'History must be an array' });
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      for (const item of history) {
+        // Check if there is already a withdrawal for this user with the same createdAt
+        const existing = await tx.select()
+          .from(withdrawals)
+          .where(
+            and(
+              eq(withdrawals.userId, userId),
+              eq(withdrawals.createdAt, item.createdAt)
+            )
+          )
+          .get();
+
+        if (!existing) {
+          await tx.insert(withdrawals).values({
+            userId,
+            amount: item.amount,
+            walletAddress: item.walletAddress || 'RESTORED_WALLET',
+            status: item.status || 'pending',
+            createdAt: item.createdAt,
+            processedAt: item.processedAt || null,
+            transactionId: item.transactionId || null
+          });
+        }
+      }
+    });
+
+    const updatedHistory = await db.select()
+      .from(withdrawals)
+      .where(eq(withdrawals.userId, userId))
+      .all();
+    
+    res.json({ success: true, history: updatedHistory });
+  } catch (err: any) {
+    console.error('[WITHDRAWAL SYNC ERROR]', err);
+    res.status(500).json({ error: err.message || 'Failed to sync withdrawal history' });
+  }
 });
 
 app.get('/api/referrals', requireUser, async (req: any, res: any) => {
