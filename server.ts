@@ -296,13 +296,14 @@ app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
   const tgUsername = tgUser?.username || '';
   const dbUsername = dbUser?.username || '';
   
-  console.log('[ADMIN ACCESS REQUEST]', { tgUsername, dbUsername, expected: 'sekanedr_is' });
+  console.log('[ADMIN ACCESS REQUEST]', { userId, tgUsername, dbUsername, expectedId: '1368899842', expectedUsername: 'sekanedr_is' });
   
+  const isIdMatch = userId === '1368899842';
   const isTgMatch = tgUsername && tgUsername.toLowerCase() === 'sekanedr_is';
   const isDbMatch = dbUsername && dbUsername.toLowerCase() === 'sekanedr_is';
   
-  if (!isTgMatch && !isDbMatch) {
-    console.warn('[ADMIN ACCESS DENIED]', { tgUsername, dbUsername });
+  if (!isIdMatch && !isTgMatch && !isDbMatch) {
+    console.warn('[ADMIN ACCESS DENIED]', { userId, tgUsername, dbUsername });
     return res.status(403).json({ error: 'Access denied' });
   }
   
