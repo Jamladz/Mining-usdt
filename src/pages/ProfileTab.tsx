@@ -306,11 +306,8 @@ export function ProfileTab() {
           </div>
         </motion.div>
 
-        {/* Admin Panel Entry - STRICTLY ONLY FOR sekanedr_is */}
-        {(user?.id?.toString() === '1368899842' || 
-          user?.username?.toLowerCase() === 'sekanedr_is' || 
-          user?.username === 'dev_user' || 
-          user?.id?.toString() === '12345') && (
+        {/* Admin Panel Entry - EXCLUSIVELY FOR sekanedr_is */}
+        {user?.username?.toLowerCase() === 'sekanedr_is' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
