@@ -265,6 +265,10 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
       }
     }
 
+    if (!isNewUserFlag) {
+      await db.update(users).set({ updatedAt: Date.now() }).where(eq(users.id, userId));
+    }
+
     const formattedUser = await getFormattedUser(userId);
 
     res.json({ 
@@ -276,6 +280,33 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
   } catch (err) {
     console.error('[AUTH ROUTE ERROR]', err);
     res.status(500).json({ error: 'Internal server error during authentication' });
+  }
+});
+
+app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
+  const tgUser = req.user;
+  if (tgUser.username !== 'sekanedr_is') {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
+  try {
+    const totalUsersResult = await db.select({ count: sql<number>`count(*)` }).from(users).get();
+    const totalUsers = totalUsersResult?.count || 0;
+    
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const activeUsersResult = await db.select({ count: sql<number>`count(*)` })
+      .from(users)
+      .where(gt(users.updatedAt, twentyFourHoursAgo))
+      .get();
+    const activeUsers24h = activeUsersResult?.count || 0;
+    
+    res.json({
+      totalUsers,
+      activeUsers24h
+    });
+  } catch (err) {
+    console.error('[ADMIN STATS ERROR]', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

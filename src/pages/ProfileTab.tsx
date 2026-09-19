@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe, ShieldAlert, Users } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -23,6 +23,33 @@ export function ProfileTab() {
   const [liveReferralsCount, setLiveReferralsCount] = useState<number>(user?.referralsCount || 0);
   const [showCongestionModal, setShowCongestionModal] = useState(false);
   const [activeLangTab, setActiveLangTab] = useState<'EN' | 'AR' | 'RU' | 'FA'>('EN');
+
+  // Admin Panel states & fetch
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminStats, setAdminStats] = useState<{ totalUsers: number, activeUsers24h: number } | null>(null);
+  const [isAdminLoading, setIsAdminLoading] = useState(false);
+
+  const fetchAdminStats = async () => {
+    setIsAdminLoading(true);
+    try {
+      const res = await fetch('/api/admin/stats', {
+        headers: { 'Authorization': initData || '' }
+      });
+      if (!res.ok) throw new Error('Unauthorized or failed to load stats');
+      const data = await res.json();
+      setAdminStats(data);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to load actual admin statistics.', 'error');
+    } finally {
+      setIsAdminLoading(false);
+    }
+  };
+
+  const handleOpenAdminPanel = () => {
+    setShowAdminPanel(true);
+    fetchAdminStats();
+  };
 
   const [tonConnectUI] = useTonConnectUI();
   const currentTonAddress = useTonAddress();
@@ -275,6 +302,29 @@ export function ProfileTab() {
             </div>
           </div>
         </motion.div>
+
+        {/* Admin Panel Entry - STRICTLY ONLY FOR sekanedr_is */}
+        {user?.username === 'sekanedr_is' && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-[20px] p-4 text-white shadow-[0_8px_25px_rgba(245,158,11,0.25)] flex items-center justify-between cursor-pointer my-1.5"
+            onClick={handleOpenAdminPanel}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-xs font-black uppercase tracking-wider">Admin Panel</h4>
+                <p className="text-[10px] text-amber-100 font-bold">Real-time platform metrics & stats</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-black bg-white text-orange-600 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
+              ENTER
+            </span>
+          </motion.div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3">
@@ -861,6 +911,191 @@ export function ProfileTab() {
                 >
                   <Check className="w-4 h-4" />
                   <span>ACKNOWLEDGE</span>
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Multilingual Admin Panel Modal */}
+      <AnimatePresence>
+        {showAdminPanel && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAdminPanel(false)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+            ></motion.div>
+
+            {/* Modal Body */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', duration: 0.5 }}
+              className="relative bg-white rounded-[28px] max-w-sm w-full overflow-hidden border border-slate-100 shadow-[0_24px_50px_rgba(0,0,0,0.18)] flex flex-col z-10 text-slate-900"
+            >
+              {/* Header warning gradient */}
+              <div className="bg-gradient-to-b from-amber-50 to-transparent p-6 pb-2 flex flex-col items-center text-center">
+                <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 mb-3 relative">
+                  <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-15"></div>
+                  <ShieldAlert className="w-7 h-7" />
+                </div>
+                <h3 className="text-xs font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5 justify-center">
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>
+                    {activeLangTab === 'EN' && 'Secure Admin Portal'}
+                    {activeLangTab === 'AR' && 'بوابة الإدارة الآمنة'}
+                    {activeLangTab === 'RU' && 'Безопасный портал'}
+                    {activeLangTab === 'FA' && 'پورتال امنیتی مدیریت'}
+                  </span>
+                </h3>
+              </div>
+
+              {/* Multilingual Tabs */}
+              <div className="px-5 mb-4">
+                <div className="bg-slate-100/80 p-1 rounded-xl flex gap-1 text-[10px] font-black">
+                  {[
+                    { code: 'EN', label: '🇺🇸 EN' },
+                    { code: 'AR', label: '🇸🇦 AR' },
+                    { code: 'RU', label: '🇷🇺 RU' },
+                    { code: 'FA', label: '🇮🇷 FA' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.code}
+                      onClick={() => setActiveLangTab(tab.code as any)}
+                      className={cn(
+                        "flex-1 py-2 rounded-lg transition-all text-center",
+                        activeLangTab === tab.code 
+                          ? "bg-slate-900 text-white shadow-sm" 
+                          : "text-slate-500 hover:bg-slate-200/50"
+                      )}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message Content with automatic RTL support */}
+              <div 
+                className={cn(
+                  "px-6 pb-4 flex flex-col justify-center min-h-[160px]",
+                  (activeLangTab === 'AR' || activeLangTab === 'FA') ? "text-right" : "text-left"
+                )}
+                dir={(activeLangTab === 'AR' || activeLangTab === 'FA') ? 'rtl' : 'ltr'}
+              >
+                {isAdminLoading ? (
+                  <div className="flex flex-col items-center justify-center text-center space-y-3">
+                    <Loader2 className="w-8 h-8 text-amber-600 animate-spin" />
+                    <p className="text-xs font-bold text-slate-500">
+                      {activeLangTab === 'EN' && 'Fetching secure database stats...'}
+                      {activeLangTab === 'AR' && 'جاري جلب إحصائيات قاعدة البيانات...'}
+                      {activeLangTab === 'RU' && 'Получение данных из базы...'}
+                      {activeLangTab === 'FA' && 'در حال دریافت اطلاعات امن...'}
+                    </p>
+                  </div>
+                ) : adminStats ? (
+                  <div className="space-y-4">
+                    {/* Header title */}
+                    <div className="space-y-1">
+                      <h4 className="text-[14px] font-black text-slate-900">
+                        {activeLangTab === 'EN' && 'System Analytics'}
+                        {activeLangTab === 'AR' && 'تحليلات النظام'}
+                        {activeLangTab === 'RU' && 'Аналитика системы'}
+                        {activeLangTab === 'FA' && 'تحلیل سیستم'}
+                      </h4>
+                      <p className="text-[10px] font-bold text-slate-400">
+                        {activeLangTab === 'EN' && 'Live operational statistics retrieved from real database.'}
+                        {activeLangTab === 'AR' && 'بيانات التشغيل الحية المستردة من قاعدة البيانات الحقيقية.'}
+                        {activeLangTab === 'RU' && 'Реальная статистика, полученная из живой базы данных.'}
+                        {activeLangTab === 'FA' && 'آمار واقعی دریافت شده از دیتابیس زنده سیستم.'}
+                      </p>
+                    </div>
+
+                    {/* Stats Layout */}
+                    <div className="space-y-2.5">
+                      {/* Stat 1: Total Users */}
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <div className="text-left" dir="ltr">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                              {activeLangTab === 'EN' && 'Total Users'}
+                              {activeLangTab === 'AR' && 'إجمالي المستخدمين'}
+                              {activeLangTab === 'RU' && 'Всего'}
+                              {activeLangTab === 'FA' && 'کل کاربران'}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-500">Registered Accounts</span>
+                          </div>
+                        </div>
+                        <span className="text-base font-black text-slate-900 font-mono">
+                          {adminStats.totalUsers}
+                        </span>
+                      </div>
+
+                      {/* Stat 2: Active Users */}
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0 relative">
+                            <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-ping"></span>
+                            <Activity className="w-4 h-4 animate-pulse" />
+                          </div>
+                          <div className="text-left" dir="ltr">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                              {activeLangTab === 'EN' && 'Active (24h)'}
+                              {activeLangTab === 'AR' && 'النشطين (24 ساعة)'}
+                              {activeLangTab === 'RU' && 'Активные (24ч)'}
+                              {activeLangTab === 'FA' && 'فعال (۲۴ ساعت)'}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-500">Real Interaction</span>
+                          </div>
+                        </div>
+                        <span className="text-base font-black text-emerald-600 font-mono">
+                          {adminStats.activeUsers24h}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-center font-bold text-red-500">Failed to load statistics.</p>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="px-6 pb-6 pt-2 flex gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  disabled={isAdminLoading}
+                  onClick={fetchAdminStats}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Activity className={cn("w-4 h-4", isAdminLoading && "animate-spin")} />
+                  <span>
+                    {activeLangTab === 'EN' && 'REFRESH'}
+                    {activeLangTab === 'AR' && 'تحديث'}
+                    {activeLangTab === 'RU' && 'ОБНОВИТЬ'}
+                    {activeLangTab === 'FA' && 'بروزرسانی'}
+                  </span>
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowAdminPanel(false)}
+                  className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.1)] transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <X className="w-4 h-4" />
+                  <span>
+                    {activeLangTab === 'EN' && 'CLOSE'}
+                    {activeLangTab === 'AR' && 'إغلاق'}
+                    {activeLangTab === 'RU' && 'ЗАКРЫТЬ'}
+                    {activeLangTab === 'FA' && 'بستن'}
+                  </span>
                 </motion.button>
               </div>
             </motion.div>
