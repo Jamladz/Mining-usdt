@@ -285,20 +285,23 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
 app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
   const tgUser = req.user;
-  if (tgUser.username !== 'sekanedr_is') {
+  console.log('[ADMIN ACCESS REQUEST]', { username: tgUser?.username, expected: 'sekanedr_is' });
+  
+  if (!tgUser || !tgUser.username || tgUser.username.toLowerCase() !== 'sekanedr_is') {
+    console.warn('[ADMIN ACCESS DENIED]', tgUser?.username);
     return res.status(403).json({ error: 'Access denied' });
   }
   
   try {
-    const totalUsersResult = await db.select({ count: sql<number>`count(*)` }).from(users).get();
-    const totalUsers = totalUsersResult?.count || 0;
+    const totalUsersResult = await db.select({ count: sql<number>`count(*)` }).from(users).all();
+    const totalUsers = totalUsersResult[0]?.count || 0;
     
     const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
     const activeUsersResult = await db.select({ count: sql<number>`count(*)` })
       .from(users)
       .where(gt(users.updatedAt, twentyFourHoursAgo))
-      .get();
-    const activeUsers24h = activeUsersResult?.count || 0;
+      .all();
+    const activeUsers24h = activeUsersResult[0]?.count || 0;
     
     res.json({
       totalUsers,

@@ -304,7 +304,7 @@ export function ProfileTab() {
         </motion.div>
 
         {/* Admin Panel Entry - STRICTLY ONLY FOR sekanedr_is */}
-        {user?.username === 'sekanedr_is' && (
+        {user?.username?.toLowerCase() === 'sekanedr_is' && (
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
