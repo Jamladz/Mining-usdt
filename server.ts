@@ -285,23 +285,34 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
 
 app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
   const tgUser = req.user;
-  console.log('[ADMIN ACCESS REQUEST]', { username: tgUser?.username, expected: 'sekanedr_is' });
+  const userId = tgUser?.id?.toString();
   
-  if (!tgUser || !tgUser.username || tgUser.username.toLowerCase() !== 'sekanedr_is') {
-    console.warn('[ADMIN ACCESS DENIED]', tgUser?.username);
+  // Robust check: look up user from DB as fallback if tgUser lacks username info
+  let dbUser = null;
+  if (userId) {
+    dbUser = await db.select().from(users).where(eq(users.id, userId)).get();
+  }
+  
+  const tgUsername = tgUser?.username || '';
+  const dbUsername = dbUser?.username || '';
+  
+  console.log('[ADMIN ACCESS REQUEST]', { tgUsername, dbUsername, expected: 'sekanedr_is' });
+  
+  const isTgMatch = tgUsername && tgUsername.toLowerCase() === 'sekanedr_is';
+  const isDbMatch = dbUsername && dbUsername.toLowerCase() === 'sekanedr_is';
+  
+  if (!isTgMatch && !isDbMatch) {
+    console.warn('[ADMIN ACCESS DENIED]', { tgUsername, dbUsername });
     return res.status(403).json({ error: 'Access denied' });
   }
   
   try {
-    const totalUsersResult = await db.select({ count: sql<number>`count(*)` }).from(users).all();
-    const totalUsers = totalUsersResult[0]?.count || 0;
+    // Radical Fix: Select all rows directly to count natively. 100% immune to driver query-builder parse errors.
+    const allUsers = await db.select().from(users).all();
+    const totalUsers = allUsers.length;
     
     const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const activeUsersResult = await db.select({ count: sql<number>`count(*)` })
-      .from(users)
-      .where(gt(users.updatedAt, twentyFourHoursAgo))
-      .all();
-    const activeUsers24h = activeUsersResult[0]?.count || 0;
+    const activeUsers24h = allUsers.filter(u => u.updatedAt && u.updatedAt >= twentyFourHoursAgo).length;
     
     res.json({
       totalUsers,
