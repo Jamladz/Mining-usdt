@@ -4,7 +4,7 @@ import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
-import { eq, and, gt, desc, sql } from 'drizzle-orm';
+import { eq, and, gt, desc, sql, count } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
 
@@ -319,19 +319,27 @@ app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
   }
   
   try {
-    const allUsers = await db.select().from(users).all();
-    const totalUsers = allUsers.length;
-    
     const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const activeUsers24h = allUsers.filter(u => u.updatedAt && u.updatedAt >= twentyFourHoursAgo).length;
-    
-    res.json({
-      totalUsers,
-      activeUsers24h
-    });
+
+    // Professional optimized parallel queries
+    const [totalRes, activeRes, newRes] = await Promise.all([
+      db.select({ value: count() }).from(users),
+      db.select({ value: count() }).from(users).where(gt(users.updatedAt, twentyFourHoursAgo)),
+      db.select({ value: count() }).from(users).where(gt(users.createdAt, twentyFourHoursAgo))
+    ]);
+
+    const stats = {
+      totalUsers: totalRes[0]?.value || 0,
+      activeUsers24h: activeRes[0]?.value || 0,
+      newUsers24h: newRes[0]?.value || 0,
+      serverTime: new Date().toISOString()
+    };
+
+    console.log('[ADMIN STATS FETCHED]', stats);
+    res.json(stats);
   } catch (err: any) {
     console.error('[ADMIN STATS ERROR]', err);
-    res.status(500).json({ error: `Database fetch failed: ${err.message || err}` });
+    res.status(500).json({ error: `Professional stats engine failure: ${err.message || err}` });
   }
 });
 

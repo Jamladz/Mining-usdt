@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe, ShieldAlert, Users } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe, ShieldAlert, Users, UserPlus } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -26,7 +26,7 @@ export function ProfileTab() {
 
   // Admin Panel states & fetch
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [adminStats, setAdminStats] = useState<{ totalUsers: number, activeUsers24h: number } | null>(null);
+  const [adminStats, setAdminStats] = useState<{ totalUsers: number, activeUsers24h: number, newUsers24h: number } | null>(null);
   const [isAdminLoading, setIsAdminLoading] = useState(false);
 
   const fetchAdminStats = async () => {
@@ -1062,6 +1062,27 @@ export function ProfileTab() {
                         </div>
                         <span className="text-base font-black text-emerald-600 font-mono">
                           {adminStats.activeUsers24h}
+                        </span>
+                      </div>
+
+                      {/* Stat 3: New Users */}
+                      <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
+                            <UserPlus className="w-4 h-4" />
+                          </div>
+                          <div className="text-left" dir="ltr">
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block leading-none">
+                              {activeLangTab === 'EN' && 'New Today'}
+                              {activeLangTab === 'AR' && 'جديد اليوم'}
+                              {activeLangTab === 'RU' && 'Новые сегодня'}
+                              {activeLangTab === 'FA' && 'جدید امروز'}
+                            </span>
+                            <span className="text-[11px] font-bold text-slate-500">Last 24 Hours</span>
+                          </div>
+                        </div>
+                        <span className="text-base font-black text-amber-600 font-mono">
+                          {adminStats.newUsers24h}
                         </span>
                       </div>
                     </div>
