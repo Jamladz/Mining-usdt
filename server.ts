@@ -429,7 +429,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs'].includes(taskId)
+        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -450,6 +450,8 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
     boostAmount = 100; // +0.01 USDT
   } else if (taskId === 'sys_join_hot_labs') {
     boostAmount = 100; // +0.01 USDT
+  } else if (taskId === 'sys_join_trx_bot') {
+    boostAmount = 1000; // +0.10 USDT
   } else if (taskId.startsWith('adsgram_reward')) {
     boostAmount = 20; // +0.002 USDT
   } else if (taskId === 'adsgram_task') {
@@ -618,7 +620,7 @@ app.get('/api/referrals', requireUser, async (req: any, res: any) => {
 });
 
 // Catch-all for unknown API routes - MUST be after all valid API routes
-app.all('/api/*', (req, res) => {
+app.all('/api/*path', (req, res) => {
   console.log(`[API 404] ${req.method} ${req.url}`);
   res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
@@ -634,7 +636,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*path', (req, res) => {
       // Ensure we don't serve index.html for missing /api routes
       if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: 'API endpoint not found' });
