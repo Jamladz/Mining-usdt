@@ -175,7 +175,7 @@ export function TasksTab() {
     if (!record) return { isCompleted: false, timeLeft: 0 };
     
     // For one-time system tasks, it is completed once in history and never resets
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_trx_bot') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_trx_bot' || taskId === 'sys_join_teqoin') {
       return { isCompleted: true, timeLeft: 999999999 };
     }
     
@@ -231,7 +231,7 @@ export function TasksTab() {
   };
 
   const getTaskStatusInfo = (taskId: string) => {
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_trx_bot') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_trx_bot' || taskId === 'sys_join_teqoin') {
       const status = getTaskStatus(taskId);
       return {
         isCompleted: status.isCompleted,
@@ -289,6 +289,24 @@ export function TasksTab() {
         try {
           await triggerBackendTaskCompletion('sys_join_ainovum', 'system', 100);
           showToast('🎉 Joined AI Novum Bot successfully! Boosted rate by +0.01 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 3000);
+      return;
+    }
+
+    if (task.id === 'sys_join_teqoin') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after a short delay so the user has time to open the link
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_teqoin', 'system', 1000);
+          showToast('🎉 Joined TeQoin Wallet successfully! Boosted rate by +0.10 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -437,6 +455,22 @@ export function TasksTab() {
 
   const sysTasks: Task[] = [
     { 
+      id: 'sys_join_teqoin', 
+      title: 'Join TeQoin Wallet', 
+      provider: 'system', 
+      icon: <Globe className="w-5 h-5" />,
+      rewardValue: '0.1',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/TeQoin_Wallet_Bot/app?startapp=r_1368899842';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_join_ainovum', 
       title: 'Join AI Novum Bot', 
       provider: 'system', 
@@ -544,7 +578,7 @@ export function TasksTab() {
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                 <span>COMPLETED</span>
               </div>
-              {!['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot'].includes(task.id) && timeLeft > 0 && (
+              {!['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot', 'sys_join_teqoin'].includes(task.id) && timeLeft > 0 && (
                 <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>

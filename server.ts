@@ -429,7 +429,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot'].includes(taskId)
+        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot', 'sys_join_teqoin'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -451,6 +451,8 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   } else if (taskId === 'sys_join_hot_labs') {
     boostAmount = 100; // +0.01 USDT
   } else if (taskId === 'sys_join_trx_bot') {
+    boostAmount = 1000; // +0.10 USDT
+  } else if (taskId === 'sys_join_teqoin') {
     boostAmount = 1000; // +0.10 USDT
   } else if (taskId.startsWith('adsgram_reward')) {
     boostAmount = 20; // +0.002 USDT
