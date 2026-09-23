@@ -58,7 +58,10 @@ export function ProfileTab() {
   const currentTonAddress = useTonAddress();
   const [selectedNft, setSelectedNft] = useState<any | null>(null);
   const [isPaying, setIsPaying] = useState(false);
-  const [nftStats, setNftStats] = useState<{ lvl1: { sold: number, total: number }, lvl2: { sold: number, total: number } } | null>(null);
+  const [nftStats, setNftStats] = useState<{ lvl1: { sold: number, total: number }, lvl2: { sold: number, total: number } }>({
+    lvl1: { sold: 36000, total: 100000 },
+    lvl2: { sold: 8300, total: 10000 }
+  });
 
   useEffect(() => {
     fetchHistory();
@@ -429,9 +432,9 @@ export function ProfileTab() {
               }
             ].map((nft) => {
               const isOwned = user?.hasNft === nft.level;
-              const stats = nftStats?.[nft.id === 'lvl1' ? 'lvl1' : 'lvl2'];
-              const soldCount = stats?.sold || 0;
-              const totalCount = stats?.total || 100;
+              const stats = nftStats[nft.id === 'lvl1' ? 'lvl1' : 'lvl2'];
+              const soldCount = stats.sold;
+              const totalCount = stats.total;
               const progress = (soldCount / totalCount) * 100;
 
               return (
