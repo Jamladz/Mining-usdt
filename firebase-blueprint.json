@@ -32,6 +32,15 @@
         "createdAt": { "type": "integer", "description": "Timestamp of the referral registration" }
       },
       "required": ["id", "referrerId", "referredUserId"]
+    },
+    "GlobalStats": {
+      "title": "Global Application Stats",
+      "description": "Global counters and statistics for the application",
+      "type": "object",
+      "properties": {
+        "nft_lvl1_sales": { "type": "integer", "description": "Total Bronze NFT (Lvl 1) sold" },
+        "nft_lvl2_sales": { "type": "integer", "description": "Total Silver NFT (Lvl 2) sold" }
+      }
     }
   },
   "firestore": {
@@ -42,6 +51,10 @@
     "referrals/{referralId}": {
       "schema": "Referral",
       "description": "Referrals registry indexed by the referred user's ID"
+    },
+    "stats/global": {
+      "schema": "GlobalStats",
+      "description": "Global counters for the app"
     }
   }
 }

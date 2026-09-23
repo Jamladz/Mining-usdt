@@ -20,6 +20,15 @@ export const users = sqliteTable('users', {
   updatedAt: integer('updated_at').default(Date.now()),
 });
 
+export const purchasedNfts = sqliteTable('purchased_nfts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull(),
+  nftId: text('nft_id').notNull(), // 'lvl1', 'lvl2'
+  level: integer('level').notNull(),
+  price: integer('price').notNull(), // in TON
+  purchasedAt: integer('purchased_at').notNull(),
+});
+
 export const miningClaims = sqliteTable('mining_claims', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   userId: text('user_id').notNull(),

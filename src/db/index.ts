@@ -46,6 +46,24 @@ const initDb = async () => {
   try {
     await client.execute(`ALTER TABLE users ADD COLUMN claimed_welcome INTEGER DEFAULT 0`);
   } catch (e) {}
+  try {
+    await client.execute(`ALTER TABLE users ADD COLUMN has_nft INTEGER DEFAULT 0`);
+  } catch (e) {}
+
+  try {
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS purchased_nfts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        nft_id TEXT NOT NULL,
+        level INTEGER NOT NULL,
+        price INTEGER NOT NULL,
+        purchased_at INTEGER NOT NULL
+      )
+    `);
+  } catch (e) {
+    console.warn('Failed to ensure purchased_nfts table exists:', e);
+  }
 
   try {
     await client.execute(`

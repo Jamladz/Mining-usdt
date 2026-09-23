@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
-import { users, miningClaims, taskCompletions, withdrawals, referrals } from './src/db/schema.js';
+import { users, miningClaims, taskCompletions, withdrawals, referrals, purchasedNfts } from './src/db/schema.js';
 import { eq, and, gt, desc, sql, count } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
@@ -491,22 +491,68 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
 
 app.post('/api/purchase-nft', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
-  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  const { nftId, price } = req.body;
   
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return res.status(404).json({ error: 'User not found' });
   
-  const NFT_BOOST = 1000; // +0.10 USDT/day rate boost!
-  const newRate = Math.min(user.miningRate + NFT_BOOST, MAX_MINING_RATE);
+  // Define boost based on Level
+  let boostAmount = 1000; // Default +0.10 USDT
+  let level = 1;
+
+  if (nftId === 'lvl1') {
+    boostAmount = 10000; // +1.00 USDT/day
+    level = 1;
+  } else if (nftId === 'lvl2') {
+    boostAmount = 35000; // +3.50 USDT/day
+    level = 2;
+  }
+  
+  const newRate = Math.min(user.miningRate + boostAmount, MAX_MINING_RATE * 100); // Allow higher rate for NFTs
   
   await db.transaction(async (tx) => {
+    // Record the specific purchase
+    await tx.insert(purchasedNfts).values({
+      userId,
+      nftId,
+      level,
+      price: price || 0,
+      purchasedAt: Date.now()
+    });
+
+    // Update user state
     await tx.update(users).set({ 
-      hasNft: 1, 
+      hasNft: level, // Use level instead of just 1
       miningRate: newRate 
     }).where(eq(users.id, userId));
   });
 
   const updatedUser = await getFormattedUser(userId);
   res.json({ success: true, user: updatedUser });
+});
+
+app.get('/api/nft-stats', async (req, res) => {
+  try {
+    const lvl1Count = await db.select({ value: count() }).from(purchasedNfts).where(eq(purchasedNfts.level, 1)).get();
+    const lvl2Count = await db.select({ value: count() }).from(purchasedNfts).where(eq(purchasedNfts.level, 2)).get();
+
+    res.json({
+      lvl1: {
+        sold: 36000 + (lvl1Count?.value || 0),
+        total: 100000
+      },
+      lvl2: {
+        sold: 8300 + (lvl2Count?.value || 0),
+        total: 10000
+      }
+    });
+  } catch (err) {
+    console.error('Failed to fetch NFT stats:', err);
+    res.json({
+      lvl1: { sold: 36000, total: 100000 },
+      lvl2: { sold: 8300, total: 10000 }
+    });
+  }
 });
 
 app.get('/api/tasks', requireUser, async (req: any, res: any) => {

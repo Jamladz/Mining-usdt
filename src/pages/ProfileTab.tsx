@@ -58,10 +58,22 @@ export function ProfileTab() {
   const currentTonAddress = useTonAddress();
   const [selectedNft, setSelectedNft] = useState<any | null>(null);
   const [isPaying, setIsPaying] = useState(false);
+  const [nftStats, setNftStats] = useState<{ lvl1: { sold: number, total: number }, lvl2: { sold: number, total: number } } | null>(null);
 
   useEffect(() => {
     fetchHistory();
+    fetchNftStats();
   }, []);
+
+  const fetchNftStats = async () => {
+    try {
+      const res = await fetch('/api/nft-stats');
+      const data = await res.json();
+      setNftStats(data);
+    } catch (e) {
+      console.error('Failed to fetch NFT stats', e);
+    }
+  };
 
   useEffect(() => {
     if (user?.id) {
@@ -233,7 +245,7 @@ export function ProfileTab() {
     e.preventDefault();
     
     // Check withdrawal criteria (3 referrals OR Level 1 NFT owned)
-    const hasNftOwned = user?.hasNft === 1;
+    const hasNftOwned = (user?.hasNft || 0) >= 1;
     const hasThreeReferrals = totalReferrals >= 3;
     const isWithdrawalUnlocked = hasThreeReferrals || hasNftOwned;
 
@@ -374,7 +386,7 @@ export function ProfileTab() {
               <h3 className="text-[15px] font-black text-slate-900 tracking-tight">Premium NFT Access</h3>
               <p className="text-[10px] text-slate-400 font-bold">Unlocks withdrawals & boosts mining speed</p>
             </div>
-            {user?.hasNft === 1 && (
+            {(user?.hasNft || 0) >= 1 && (
               <span className="ml-auto text-[9px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 flex items-center gap-1 shrink-0">
                 Active Member <Check className="w-2.5 h-2.5" />
               </span>
@@ -416,7 +428,12 @@ export function ProfileTab() {
                 description: 'Boosts your mining rate by +3.50 USDT per day and guarantees VIP withdrawal speeds.'
               }
             ].map((nft) => {
-              const isOwned = user?.hasNft === 1 && nft.level === 1;
+              const isOwned = user?.hasNft === nft.level;
+              const stats = nftStats?.[nft.id === 'lvl1' ? 'lvl1' : 'lvl2'];
+              const soldCount = stats?.sold || 0;
+              const totalCount = stats?.total || 100;
+              const progress = (soldCount / totalCount) * 100;
+
               return (
                 <motion.div
                   key={nft.id}
@@ -448,6 +465,24 @@ export function ProfileTab() {
                   
                   <h4 className="text-[11px] font-black text-slate-800 line-clamp-1 leading-tight">{nft.name}</h4>
                   <p className="text-[9px] font-black text-indigo-600 mt-1">{nft.boost}</p>
+
+                  {/* NFT Progress Bar */}
+                  <div className="w-full mt-2.5 space-y-1">
+                    <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-tighter">
+                      <span className="text-slate-400">Minted</span>
+                      <span className="text-slate-600">{soldCount.toLocaleString()}/{totalCount.toLocaleString()}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progress}%` }}
+                        className={cn(
+                          "h-full rounded-full transition-all duration-1000",
+                          nft.level === 1 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" : "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                        )}
+                      />
+                    </div>
+                  </div>
                 </motion.div>
               );
             })}
@@ -477,7 +512,7 @@ export function ProfileTab() {
 
           {/* Elegant Referral or NFT Lock/Unlock Notice */}
           {(() => {
-            const isWithdrawalUnlocked = totalReferrals >= 3 || user?.hasNft === 1;
+            const isWithdrawalUnlocked = totalReferrals >= 3 || (user?.hasNft || 0) >= 1;
             return isWithdrawalUnlocked ? (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -494,7 +529,7 @@ export function ProfileTab() {
                   </span>
                 </div>
                 <p className="text-[10px] text-emerald-800 leading-relaxed font-bold">
-                  🎉 Congratulations! You have unlocked withdrawals by satisfying the required criteria ({user?.hasNft === 1 ? 'Level 1 NFT Owned' : `3 Active Referrals achieved`}).
+                  🎉 Congratulations! You have unlocked withdrawals by satisfying the required criteria ({(user?.hasNft || 0) >= 1 ? 'NFT Owned' : `3 Active Referrals achieved`}).
                 </p>
               </motion.div>
             ) : (
@@ -526,7 +561,7 @@ export function ProfileTab() {
 
           <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
             {(() => {
-              const isWithdrawalUnlocked = totalReferrals >= 3 || user?.hasNft === 1;
+              const isWithdrawalUnlocked = totalReferrals >= 3 || (user?.hasNft || 0) >= 1;
               return (
                 <>
                   <div className="space-y-1">
@@ -742,7 +777,7 @@ export function ProfileTab() {
                   </div>
                 </div>
 
-                {user?.hasNft === 1 && selectedNft.level === 1 ? (
+                {user?.hasNft === selectedNft.level ? (
                   <button
                     disabled
                     className="w-full bg-slate-100 text-slate-400 text-xs font-black py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
