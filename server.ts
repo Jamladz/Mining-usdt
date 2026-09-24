@@ -573,7 +573,7 @@ app.post('/api/withdraw', requireUser, async (req: any, res: any) => {
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   if (!user) return res.status(404).json({ error: 'User not found' });
 
-  if (!user.hasNft || user.hasNft !== 1) {
+  if (!user.hasNft || user.hasNft < 1) {
     return res.status(400).json({ error: 'You must purchase at least the Level 1 NFT to enable withdrawals.' });
   }
 
