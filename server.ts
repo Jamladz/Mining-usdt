@@ -429,7 +429,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs'].includes(taskId)
+        ['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -460,6 +460,8 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
     boostAmount = 1000; // +0.10 USDT
   } else if (taskId === 'sys_join_wallet') {
     boostAmount = 1000; // +0.10 USDT
+  } else if (taskId === 'sys_join_pilotka') {
+    boostAmount = 10000; // +1.00 USDT
   } else if (taskId === 'sys_join_cryptorcs') {
     boostAmount = 1000; // +0.10 USDT
   } else if (taskId.startsWith('adsgram_reward')) {
