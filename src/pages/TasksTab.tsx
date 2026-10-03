@@ -175,7 +175,7 @@ export function TasksTab() {
     if (!record) return { isCompleted: false, timeLeft: 0 };
     
     // For one-time system tasks, it is completed once in history and never resets
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_trx_bot' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint') {
       return { isCompleted: true, timeLeft: 999999999 };
     }
     
@@ -231,7 +231,7 @@ export function TasksTab() {
   };
 
   const getTaskStatusInfo = (taskId: string) => {
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_ainovum' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_trx_bot' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint') {
       const status = getTaskStatus(taskId);
       return {
         isCompleted: status.isCompleted,
@@ -334,15 +334,15 @@ export function TasksTab() {
       return;
     }
 
-    if (task.id === 'sys_join_midaso') {
+    if (task.id === 'sys_join_cryptomint') {
       setLoadingTask(task.id);
       task.action?.();
       
       // Complete after a short delay so the user has time to open the link
       setTimeout(async () => {
         try {
-          await triggerBackendTaskCompletion('sys_join_midaso', 'system', 1000);
-          showToast('🎉 Joined Midaso Spin successfully! Boosted rate by +0.10 USDT/day.', 'success');
+          await triggerBackendTaskCompletion('sys_join_cryptomint', 'system', 1000);
+          showToast('🎉 Joined CryptoMint NFT Bot successfully! Boosted rate by +0.10 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -352,15 +352,15 @@ export function TasksTab() {
       return;
     }
 
-    if (task.id === 'sys_join_ainovum') {
+    if (task.id === 'sys_join_midaso') {
       setLoadingTask(task.id);
       task.action?.();
       
       // Complete after a short delay so the user has time to open the link
       setTimeout(async () => {
         try {
-          await triggerBackendTaskCompletion('sys_join_ainovum', 'system', 100);
-          showToast('🎉 Joined AI Novum Bot successfully! Boosted rate by +0.01 USDT/day.', 'success');
+          await triggerBackendTaskCompletion('sys_join_midaso', 'system', 1000);
+          showToast('🎉 Joined Midaso Spin successfully! Boosted rate by +0.10 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -397,24 +397,6 @@ export function TasksTab() {
         try {
           await triggerBackendTaskCompletion('sys_join_teqoin', 'system', 1000);
           showToast('🎉 Joined TeQoin Wallet successfully! Boosted rate by +0.10 USDT/day.', 'success');
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setLoadingTask(null);
-        }
-      }, 3000);
-      return;
-    }
-
-    if (task.id === 'sys_join_trx_bot') {
-      setLoadingTask(task.id);
-      task.action?.();
-      
-      // Complete after a short delay so the user has time to open the link
-      setTimeout(async () => {
-        try {
-          await triggerBackendTaskCompletion('sys_join_trx_bot', 'system', 1000);
-          showToast('🎉 Joined TRX Power Mining Bot successfully! Boosted rate by +0.10 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -593,6 +575,22 @@ export function TasksTab() {
       }
     },
     { 
+      id: 'sys_join_cryptomint', 
+      title: 'Join CryptoMint NFT Bot', 
+      provider: 'system', 
+      icon: <Send className="w-5 h-5" />,
+      rewardValue: '0.1',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/cryptomintnftbot?start=REF-1368899842';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_join_midaso', 
       title: 'Join Midaso Spin', 
       provider: 'system', 
@@ -633,38 +631,6 @@ export function TasksTab() {
       action: () => {
         const tg = (window as any).Telegram?.WebApp;
         const link = 'https://t.me/TeQoin_Wallet_Bot/app?startapp=r_1368899842';
-        if (tg?.openTelegramLink) {
-          tg.openTelegramLink(link);
-        } else {
-          window.open(link, '_blank');
-        }
-      }
-    },
-    { 
-      id: 'sys_join_ainovum', 
-      title: 'Join AI Novum Bot', 
-      provider: 'system', 
-      icon: <Send className="w-5 h-5" />,
-      rewardValue: '0.01',
-      action: () => {
-        const tg = (window as any).Telegram?.WebApp;
-        const link = 'https://t.me/ainovum_bot?start=ref_1368899842&startapp=ref_1368899842';
-        if (tg?.openTelegramLink) {
-          tg.openTelegramLink(link);
-        } else {
-          window.open(link, '_blank');
-        }
-      }
-    },
-    { 
-      id: 'sys_join_trx_bot', 
-      title: 'TRX Power Mining Bot', 
-      provider: 'system', 
-      icon: <Smartphone className="w-5 h-5" />,
-      rewardValue: '0.1',
-      action: () => {
-        const tg = (window as any).Telegram?.WebApp;
-        const link = 'https://t.me/trxpowermining_bot?start=ref_TRX1368899842';
         if (tg?.openTelegramLink) {
           tg.openTelegramLink(link);
         } else {
@@ -748,7 +714,7 @@ export function TasksTab() {
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                 <span>COMPLETED</span>
               </div>
-              {!['sys_add_home', 'sys_join_ainovum', 'sys_join_hot_labs', 'sys_join_trx_bot', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka'].includes(task.id) && timeLeft > 0 && (
+              {!['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint'].includes(task.id) && timeLeft > 0 && (
                 <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>

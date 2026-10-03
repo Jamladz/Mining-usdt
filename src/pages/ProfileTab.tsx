@@ -648,13 +648,13 @@ export function ProfileTab() {
 
             return (
               <div className="mb-4 bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex flex-col space-y-2.5 relative overflow-hidden z-10">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 hidden">
                   <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
                     <Lock className="w-3.5 h-3.5" />
                   </div>
                   <h4 className="text-[11px] font-black text-amber-950 uppercase tracking-wider">Verification Steps</h4>
                 </div>
-                <p className="text-[10px] text-amber-800 leading-relaxed font-bold">
+                <p className="text-[10px] text-amber-800 leading-relaxed font-bold hidden">
                   Complete these steps to unlock your first withdrawal:
                 </p>
                 <div className="space-y-1.5 pl-1">
@@ -670,7 +670,7 @@ export function ProfileTab() {
                     </span>
                   </div>
                   <div className={cn(
-                    "flex items-center justify-between text-[10px] font-extrabold px-2.5 py-1 rounded-xl",
+                    "flex items-center justify-between text-[10px] font-extrabold px-2.5 py-1 rounded-xl hidden",
                     hasNft ? "bg-emerald-100/40 text-emerald-900" : "bg-amber-100/40 text-amber-900"
                   )}>
                     <span className="flex items-center gap-1.5">
