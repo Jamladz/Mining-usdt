@@ -21,6 +21,63 @@ export function TasksTab() {
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  
+  // Manual Tasks State
+  const [manualTaskStatuses, setManualTaskStatuses] = useState<Record<string, { status: string; createdAt?: number; externalUsername?: string }>>({});
+  const [showManualInput, setShowManualInput] = useState<string | null>(null);
+  const [externalUsername, setExternalUsername] = useState('');
+
+  const fetchManualStatuses = async () => {
+    try {
+      const taskIds = ['sys_baat']; // Add more here if needed
+      const results: any = {};
+      for (const id of taskIds) {
+        const res = await fetch(`/api/tasks/manual-status/${id}`, {
+          headers: { 'Authorization': initData || '' }
+        });
+        if (res.ok) {
+          results[id] = await res.json();
+        }
+      }
+      setManualTaskStatuses(results);
+    } catch (e) {
+      console.warn('Failed to fetch manual task statuses', e);
+    }
+  };
+
+  useEffect(() => {
+    if (initData) {
+      fetchManualStatuses();
+    }
+  }, [initData]);
+
+  const submitManualTask = async (taskId: string) => {
+    if (!externalUsername.trim()) return;
+    setLoadingTask(taskId);
+    try {
+      const res = await fetch('/api/tasks/submit-manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': initData || ''
+        },
+        body: JSON.stringify({ taskId, externalUsername })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Submission successful! Under review for 4 hours.', 'success');
+        fetchManualStatuses();
+        setShowManualInput(null);
+        setExternalUsername('');
+      } else {
+        showToast(data.error || 'Failed to submit', 'error');
+      }
+    } catch (e) {
+      showToast('Error submitting task', 'error');
+    } finally {
+      setLoadingTask(null);
+    }
+  };
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     // Attempt Telegram native haptic feedback
@@ -231,6 +288,32 @@ export function TasksTab() {
   };
 
   const getTaskStatusInfo = (taskId: string) => {
+    if (taskId === 'sys_baat') {
+      const manualStatus = manualTaskStatuses[taskId];
+      const isCompletedInHistory = completedTasksList.some(t => t.taskId === taskId);
+      
+      if (isCompletedInHistory || manualStatus?.status === 'approved') {
+        return { isCompleted: true, timeLeft: 999999999, subLabel: 'Permanent Boost' };
+      }
+
+      if (manualStatus?.status === 'pending') {
+        const FOUR_HOURS = 4 * 60 * 60 * 1000;
+        const elapsed = currentTime - (manualStatus.createdAt || 0);
+        const timeLeft = Math.max(0, FOUR_HOURS - elapsed);
+        
+        if (timeLeft > 0) {
+          return { isCompleted: false, isInReview: true, timeLeft, subLabel: 'Under Review' };
+        }
+        // If 4 hours passed, backend returns 'expired' or we handle it here
+      }
+
+      if (manualStatus?.status === 'rejected' || manualStatus?.status === 'expired') {
+        return { isCompleted: false, subLabel: 'Please retry' };
+      }
+
+      return { isCompleted: false, subLabel: 'Manual Verification' };
+    }
+
     if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint') {
       const status = getTaskStatus(taskId);
       return {
@@ -489,6 +572,11 @@ export function TasksTab() {
       return;
     }
 
+    if (task.id === 'sys_baat') {
+      task.action?.();
+      return;
+    }
+
     let finalTaskId = task.id;
     let rewardRateBoost = 10;
 
@@ -526,6 +614,24 @@ export function TasksTab() {
   ];
 
   const sysTasks: Task[] = [
+    { 
+      id: 'sys_baat', 
+      title: 'Baat', 
+      provider: 'system', 
+      icon: <MonitorPlay className="w-5 h-5" />,
+      rewardValue: '1',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://os8.me/Nf5sGr';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+        // After opening link, show input for username
+        setTimeout(() => setShowManualInput('sys_baat'), 1000);
+      }
+    },
     { 
       id: 'sys_join_wallet', 
       title: 'Join Telegram Wallet', 
@@ -667,87 +773,134 @@ export function TasksTab() {
   const activeSysTasks = sysTasks;
 
   const renderTask = (task: Task, index: number) => {
-    const { isCompleted, timeLeft, subLabel } = getTaskStatusInfo(task.id);
+    const { isCompleted, timeLeft, subLabel, isInReview } = getTaskStatusInfo(task.id) as any;
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
+    const isManualInputActive = showManualInput === task.id;
 
     return (
-      <motion.div 
-        key={task.id} 
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.05 }}
-        className={cn(
-          "flex items-center justify-between p-3 rounded-2xl border mb-2 transition-all",
-          isCompleted ? "bg-slate-50 border-slate-100" : "bg-white border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgb(0,0,0,0.04)]"
-        )}
-      >
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className={cn("flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center", 
-            isCompleted 
-              ? "bg-slate-100 text-slate-400" 
-              : task.provider === 'monetag'
-                ? "bg-indigo-50 text-indigo-500"
-                : "bg-blue-50 text-blue-500"
-          )}>
-            {React.cloneElement(task.icon as React.ReactElement, { className: "w-4 h-4" })}
-          </div>
-          <div className="flex flex-col min-w-0 justify-center">
-            <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
-            <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5", isCompleted ? "text-slate-400" : "text-emerald-600")}>
-              <span><USDT amount={'+' + reward} size="text-[9px]" iconSize="w-3 h-3" /> / 24H</span>
-              <span className="text-slate-300">•</span>
-              <span className="text-slate-400 normal-case tracking-normal">{subLabel}</span>
-            </p>
-          </div>
-        </div>
-        
-        <AnimatePresence mode="wait">
-          {isCompleted ? (
-            <motion.div 
-              key="done"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-end"
-            >
-              <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50/80 px-2.5 py-1 rounded-full font-black text-[9px] border border-emerald-100/60 shadow-[0_1px_5px_rgba(16,185,129,0.05)]">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-                <span>COMPLETED</span>
-              </div>
-              {!['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint'].includes(task.id) && timeLeft > 0 && (
-                <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-500"></span>
-                  </span>
-                  <span>RESETS IN {formatCountdown(timeLeft)}</span>
-                </div>
-              )}
-            </motion.div>
-          ) : (
-            <motion.button
-              key="start"
-              whileTap={{ scale: 0.95 }}
-              onClick={() => handleTaskClick(task)}
-              disabled={isLoading}
-              className={cn(
-                "flex-shrink-0 px-3 py-1.5 text-[10px] font-black rounded-lg whitespace-nowrap transition-colors",
-                isLoading 
-                  ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
-                  : task.id === 'sys_add_home' && homeScreenStatus === 'added'
-                    ? "bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.45)] hover:bg-emerald-600 animate-pulse font-black"
-                    : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
-              )}
-            >
-              {isLoading 
-                ? '...' 
-                : task.id === 'sys_add_home' 
-                  ? (homeScreenStatus === 'added' ? 'CLAIM' : 'START') 
-                  : 'START'}
-            </motion.button>
+      <div className="flex flex-col mb-2">
+        <motion.div 
+          key={task.id} 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.05 }}
+          className={cn(
+            "flex items-center justify-between p-3 rounded-2xl border transition-all",
+            isCompleted ? "bg-slate-50 border-slate-100" : "bg-white border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgb(0,0,0,0.04)]"
           )}
-        </AnimatePresence>
-      </motion.div>
+        >
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className={cn("flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center", 
+              isCompleted 
+                ? "bg-slate-100 text-slate-400" 
+                : task.provider === 'monetag'
+                  ? "bg-indigo-50 text-indigo-500"
+                  : "bg-blue-50 text-blue-500"
+            )}>
+              {React.cloneElement(task.icon as React.ReactElement, { className: "w-4 h-4" })}
+            </div>
+            <div className="flex flex-col min-w-0 justify-center">
+              <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
+              <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5", isCompleted ? "text-slate-400" : "text-emerald-600")}>
+                <span><USDT amount={'+' + reward} size="text-[9px]" iconSize="w-3 h-3" /> / 24H</span>
+                <span className="text-slate-300">•</span>
+                <span className="text-slate-400 normal-case tracking-normal">{subLabel}</span>
+              </p>
+            </div>
+          </div>
+          
+          <AnimatePresence mode="wait">
+            {isCompleted ? (
+              <motion.div 
+                key="done"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-end"
+              >
+                <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50/80 px-2.5 py-1 rounded-full font-black text-[9px] border border-emerald-100/60 shadow-[0_1px_5px_rgba(16,185,129,0.05)]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                  <span>COMPLETED</span>
+                </div>
+                {!['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat'].includes(task.id) && timeLeft > 0 && (
+                  <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-500"></span>
+                    </span>
+                    <span>RESETS IN {formatCountdown(timeLeft)}</span>
+                  </div>
+                )}
+              </motion.div>
+            ) : isInReview ? (
+              <motion.div 
+                key="review"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-end"
+              >
+                <div className="flex items-center gap-1 text-amber-600 bg-amber-50/80 px-2.5 py-1 rounded-full font-black text-[9px] border border-amber-100/60 shadow-[0_1px_5px_rgba(245,158,11,0.05)]">
+                  <MonitorPlay className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                  <span>IN REVIEW</span>
+                </div>
+                {timeLeft > 0 && (
+                  <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
+                    <span>{formatCountdown(timeLeft)}</span>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.button
+                key="start"
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleTaskClick(task)}
+                disabled={isLoading}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1.5 text-[10px] font-black rounded-lg whitespace-nowrap transition-colors",
+                  isLoading 
+                    ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                    : task.id === 'sys_add_home' && homeScreenStatus === 'added'
+                      ? "bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.45)] hover:bg-emerald-600 animate-pulse font-black"
+                      : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
+                )}
+              >
+                {isLoading 
+                  ? '...' 
+                  : task.id === 'sys_add_home' 
+                    ? (homeScreenStatus === 'added' ? 'CLAIM' : 'START') 
+                    : (manualTaskStatuses[task.id]?.status === 'rejected' || manualTaskStatuses[task.id]?.status === 'expired' ? 'RETRY' : 'START')}
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {isManualInputActive && !isCompleted && !isInReview && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mt-2 bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col gap-2"
+          >
+            <p className="text-[10px] font-bold text-slate-600">Enter your {task.title} username:</p>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                value={externalUsername}
+                onChange={(e) => setExternalUsername(e.target.value)}
+                placeholder="Username"
+                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-slate-400"
+              />
+              <button 
+                onClick={() => submitManualTask(task.id)}
+                disabled={isLoading || !externalUsername.trim()}
+                className="bg-slate-900 text-white text-[10px] font-black px-4 py-1.5 rounded-lg disabled:opacity-50"
+              >
+                {isLoading ? '...' : 'Verify'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </div>
     );
   };
 

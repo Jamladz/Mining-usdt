@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { db } from './src/db/index.js';
-import { users, miningClaims, taskCompletions, withdrawals, referrals, purchasedNfts } from './src/db/schema.js';
+import { users, miningClaims, taskCompletions, withdrawals, referrals, purchasedNfts, manualTaskSubmissions } from './src/db/schema.js';
 import { eq, and, gt, desc, sql, count } from 'drizzle-orm';
 import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
@@ -343,6 +343,49 @@ app.get('/api/admin/stats', requireUser, async (req: any, res: any) => {
   }
 });
 
+app.get('/api/admin/manual-tasks', requireUser, async (req: any, res: any) => {
+  const tgUser = req.user;
+  if (tgUser.username?.toLowerCase() !== 'sekanedr_is') return res.status(403).json({ error: 'Unauthorized' });
+
+  const submissions = await db.select().from(manualTaskSubmissions).where(eq(manualTaskSubmissions.status, 'pending')).all();
+  res.json({ submissions });
+});
+
+app.post('/api/admin/tasks/approve', requireUser, async (req: any, res: any) => {
+  const tgUser = req.user;
+  if (tgUser.username?.toLowerCase() !== 'sekanedr_is') return res.status(403).json({ error: 'Unauthorized' });
+
+  const { submissionId, status } = req.body;
+  if (!submissionId || !status) return res.status(400).json({ error: 'Missing details' });
+
+  const submission = await db.select().from(manualTaskSubmissions).where(eq(manualTaskSubmissions.id, submissionId)).get();
+  if (!submission) return res.status(404).json({ error: 'Submission not found' });
+
+  await db.transaction(async (tx) => {
+    await tx.update(manualTaskSubmissions).set({ status, updatedAt: Date.now() }).where(eq(manualTaskSubmissions.id, submissionId));
+    
+    if (status === 'approved') {
+      const boostAmount = 10000; // 1.00 USDT
+      const user = await tx.select().from(users).where(eq(users.id, submission.userId)).get();
+      if (user) {
+        await tx.update(users).set({ 
+          miningRate: Math.min(user.miningRate + boostAmount, MAX_MINING_RATE * 100) 
+        }).where(eq(users.id, submission.userId));
+        
+        await tx.insert(taskCompletions).values({
+          userId: submission.userId,
+          taskId: submission.taskId,
+          provider: 'system',
+          reward: boostAmount,
+          completedAt: Date.now(),
+        });
+      }
+    }
+  });
+
+  res.json({ success: true });
+});
+
 app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
@@ -563,6 +606,92 @@ app.get('/api/tasks', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const completed = await db.select().from(taskCompletions).where(eq(taskCompletions.userId, userId)).all();
   res.json({ completedTasks: completed.map(c => c.taskId) });
+});
+
+app.post('/api/tasks/submit-manual', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const { taskId, externalUsername } = req.body;
+
+  if (!taskId || !externalUsername) {
+    return res.status(400).json({ error: 'Missing task ID or username' });
+  }
+
+  const now = Date.now();
+  const FOUR_HOURS = 4 * 60 * 60 * 1000;
+
+  // Check for existing pending submission
+  const existing = await db.select().from(manualTaskSubmissions)
+    .where(
+      and(
+        eq(manualTaskSubmissions.userId, userId),
+        eq(manualTaskSubmissions.taskId, taskId)
+      )
+    )
+    .orderBy(desc(manualTaskSubmissions.createdAt))
+    .get();
+
+  if (existing) {
+    if (existing.status === 'approved') {
+      return res.status(400).json({ error: 'Task already completed' });
+    }
+    
+    // If pending and less than 4 hours, cannot resubmit
+    if (existing.status === 'pending' && now - existing.createdAt < FOUR_HOURS) {
+      const timeLeft = FOUR_HOURS - (now - existing.createdAt);
+      return res.status(400).json({ 
+        error: 'Task is still under review', 
+        timeLeft,
+        status: 'pending'
+      });
+    }
+    
+    // If pending and > 4 hours, or rejected, they can submit again (it will update or create new)
+  }
+
+  await db.insert(manualTaskSubmissions).values({
+    userId,
+    taskId,
+    externalUsername,
+    status: 'pending',
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  res.json({ success: true, status: 'pending' });
+});
+
+app.get('/api/tasks/manual-status/:taskId', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const { taskId } = req.params;
+
+  const submission = await db.select().from(manualTaskSubmissions)
+    .where(
+      and(
+        eq(manualTaskSubmissions.userId, userId),
+        eq(manualTaskSubmissions.taskId, taskId)
+      )
+    )
+    .orderBy(desc(manualTaskSubmissions.createdAt))
+    .get();
+
+  if (!submission) {
+    return res.json({ status: 'not_submitted' });
+  }
+
+  const now = Date.now();
+  const FOUR_HOURS = 4 * 60 * 60 * 1000;
+  let effectiveStatus = submission.status;
+
+  // If pending and > 4 hours, it's considered "can_retry" or "not_verified"
+  if (submission.status === 'pending' && now - submission.createdAt > FOUR_HOURS) {
+    effectiveStatus = 'expired';
+  }
+
+  res.json({ 
+    status: effectiveStatus, 
+    createdAt: submission.createdAt,
+    externalUsername: submission.externalUsername 
+  });
 });
 
 app.post('/api/withdraw', requireUser, async (req: any, res: any) => {

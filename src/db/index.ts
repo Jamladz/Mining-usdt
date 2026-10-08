@@ -137,6 +137,22 @@ const initDb = async () => {
   } catch (e) {
     console.warn('Failed to ensure withdrawals table exists:', e);
   }
+
+  try {
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS manual_task_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        external_username TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
+  } catch (e) {
+    console.warn('Failed to ensure manual_task_submissions table exists:', e);
+  }
 };
 
 initDb().catch(err => {

@@ -66,3 +66,13 @@ export const withdrawals = sqliteTable('withdrawals', {
   processedAt: integer('processed_at'),
   transactionId: text('transaction_id'),
 });
+
+export const manualTaskSubmissions = sqliteTable('manual_task_submissions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: text('user_id').notNull(),
+  taskId: text('task_id').notNull(),
+  externalUsername: text('external_username').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending', 'approved', 'rejected'
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
