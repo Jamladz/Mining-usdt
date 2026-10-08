@@ -623,8 +623,8 @@ export function TasksTab() {
       action: () => {
         const tg = (window as any).Telegram?.WebApp;
         const link = 'https://os8.me/Nf5sGr';
-        if (tg?.openTelegramLink) {
-          tg.openTelegramLink(link);
+        if (tg?.openLink) {
+          tg.openLink(link);
         } else {
           window.open(link, '_blank');
         }
