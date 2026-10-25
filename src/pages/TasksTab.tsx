@@ -232,7 +232,7 @@ export function TasksTab() {
     if (!record) return { isCompleted: false, timeLeft: 0 };
     
     // For one-time system tasks, it is completed once in history and never resets
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt') {
       return { isCompleted: true, timeLeft: 999999999 };
     }
     
@@ -314,7 +314,7 @@ export function TasksTab() {
       return { isCompleted: false, subLabel: 'Manual Verification' };
     }
 
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt') {
       const status = getTaskStatus(taskId);
       return {
         isCompleted: status.isCompleted,
@@ -372,6 +372,42 @@ export function TasksTab() {
         try {
           await triggerBackendTaskCompletion('sys_join_wallet', 'system', 1000);
           showToast('🎉 Joined Telegram Wallet successfully! Boosted rate by +0.10 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 3000);
+      return;
+    }
+
+    if (task.id === 'sys_join_walt') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after a short delay so the user has time to open the link
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_walt', 'system', 5000);
+          showToast('🎉 Joined Walt successfully! Boosted rate by +0.50 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 3000);
+      return;
+    }
+
+    if (task.id === 'sys_join_giftsvault') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after a short delay so the user has time to open the link
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_giftsvault', 'system', 1000);
+          showToast('🎉 Joined GiftsVault Bot successfully! Boosted rate by +0.10 USDT/day.', 'success');
         } catch (e) {
           console.error(e);
         } finally {
@@ -633,6 +669,38 @@ export function TasksTab() {
       }
     },
     { 
+      id: 'sys_join_giftsvault', 
+      title: 'Join GiftsVault Bot', 
+      provider: 'system', 
+      icon: <Play className="w-5 h-5" />,
+      rewardValue: '0.1',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/GiftsVault_bot?startapp=ref_1368899842';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
+      id: 'sys_join_walt', 
+      title: 'Join Walt', 
+      provider: 'system', 
+      icon: <Wallet className="w-5 h-5" />,
+      rewardValue: '0.5',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://telegram.me/walt/start?startapp=ref-3-xaQt_2lcN8U';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_join_wallet', 
       title: 'Join Telegram Wallet', 
       provider: 'system', 
@@ -822,7 +890,7 @@ export function TasksTab() {
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                   <span>COMPLETED</span>
                 </div>
-                {!['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat'].includes(task.id) && timeLeft > 0 && (
+                {!['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt'].includes(task.id) && timeLeft > 0 && (
                   <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
