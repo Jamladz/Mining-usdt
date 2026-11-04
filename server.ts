@@ -88,18 +88,32 @@ async function getFormattedUser(userId: string) {
 
   const now = Date.now();
   const ONE_DAY = 24 * 60 * 60 * 1000;
-  const recentTasks = await db.select().from(taskCompletions)
-    .where(
-      and(
-        eq(taskCompletions.userId, userId),
-        gt(taskCompletions.completedAt, now - ONE_DAY)
-      )
-    ).all();
+  const allUserTasks = await db.select().from(taskCompletions)
+    .where(eq(taskCompletions.userId, userId))
+    .all();
 
-  const completedTasksData = recentTasks.map(t => ({
-    taskId: t.taskId,
-    completedAt: t.completedAt
-  }));
+  const oneTimeTaskIds = new Set([
+    'sys_add_home',
+    'sys_join_hot_labs',
+    'sys_join_teqoin',
+    'sys_join_lamotrade',
+    'sys_join_midaso',
+    'sys_join_wallet',
+    'sys_join_cryptorcs',
+    'sys_join_pilotka',
+    'sys_join_cryptomint',
+    'sys_join_giftsvault',
+    'sys_join_walt',
+    'sys_join_riftycoin',
+    'sys_baat'
+  ]);
+
+  const completedTasksData = allUserTasks
+    .filter(t => oneTimeTaskIds.has(t.taskId) || t.completedAt > now - ONE_DAY)
+    .map(t => ({
+      taskId: t.taskId,
+      completedAt: t.completedAt
+    }));
 
   return {
     ...user,
@@ -827,7 +841,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt'].includes(taskId)
+        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -855,6 +869,8 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   } else if (taskId === 'sys_join_wallet') {
     boostAmount = 1000; // +0.10 USDT
   } else if (taskId === 'sys_join_walt') {
+    boostAmount = 5000; // +0.50 USDT
+  } else if (taskId === 'sys_join_riftycoin') {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_pilotka') {
     boostAmount = 10000; // +1.00 USDT
