@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { USDT } from "../components/USDT";
-import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe, ShieldAlert, Users, UserPlus } from 'lucide-react';
+import { Wallet, ArrowRightLeft, Clock, History, ExternalLink, Activity, BookmarkPlus, CheckCircle2, Lock, HelpCircle, Sparkles, Check, X, Zap, Loader2, AlertTriangle, Globe, ShieldAlert, Users, UserPlus, Copy, ShieldCheck, TrendingUp, ChevronRight, Award } from 'lucide-react';
 import { formatUSDT, parseUSDT } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -24,12 +24,21 @@ export function ProfileTab() {
   const [liveReferralsCount, setLiveReferralsCount] = useState<number>(user?.referralsCount || 0);
   const [showCongestionModal, setShowCongestionModal] = useState(false);
   const [activeLangTab, setActiveLangTab] = useState<'EN' | 'AR' | 'RU' | 'FA'>('EN');
+  const [copiedUserId, setCopiedUserId] = useState(false);
 
   // Admin Panel state
   const [showAdminPanel, setShowAdminPanel] = useState(false);
 
   const handleOpenAdminPanel = () => {
     setShowAdminPanel(true);
+  };
+
+  const handleCopyUserId = () => {
+    if (!user?.id) return;
+    navigator.clipboard.writeText(user.id.toString());
+    setCopiedUserId(true);
+    showToast('Account ID copied to clipboard', 'info');
+    setTimeout(() => setCopiedUserId(false), 2000);
   };
 
   const [tonConnectUI] = useTonConnectUI();
@@ -322,46 +331,107 @@ export function ProfileTab() {
   };
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F5F7F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F4F6F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
       <Header title="Profile" />
       
-      <div className="p-4 space-y-4 pb-24">
-        {/* User Card */}
+      <div className="p-4 space-y-4 pb-28 max-w-md mx-auto">
+        {/* Executive Identity & Portfolio Hero Card */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-[24px] p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center relative overflow-hidden text-center"
+          className="bg-white rounded-[28px] border border-slate-200/70 shadow-[0_10px_35px_rgba(15,23,42,0.04)] overflow-hidden"
         >
-          <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-slate-50 to-transparent"></div>
-          
-          <div className="w-16 h-16 bg-white rounded-full overflow-hidden flex-shrink-0 border-4 border-white shadow-lg relative z-10 mb-3">
-            {user?.photoUrl ? (
-              <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <div className={cn(
-                "w-full h-full flex items-center justify-center font-black text-xl uppercase tracking-wide",
-                getTelegramGradient(nameForGradient)
-              )}>
-                {getInitials()}
-              </div>
-            )}
+          {/* Top Atmospheric Banner */}
+          <div className="h-20 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden px-4 pt-3 flex items-start justify-between">
+            <div className="absolute -top-10 -left-10 w-36 h-36 rounded-full bg-emerald-500/15 blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -right-8 w-40 h-40 rounded-full bg-indigo-500/15 blur-2xl pointer-events-none" />
+
+            <div className="relative z-10 flex items-center gap-1.5 text-[10px] font-bold text-slate-300 tracking-wide">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Verified Account</span>
+              {(user?.hasNft || 0) >= 1 && (
+                <>
+                  <span className="text-slate-600">·</span>
+                  <span className="text-amber-300 font-extrabold">VIP Lvl {user?.hasNft}</span>
+                </>
+              )}
+            </div>
+
+            <button 
+              onClick={() => setIsFAQOpen(true)}
+              aria-label="Open Help & FAQ"
+              className="relative z-10 h-8 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center gap-1.5 text-amber-300 text-[10px] font-black transition-all active:scale-95"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>FAQ</span>
+            </button>
           </div>
-          <div className="flex flex-col relative z-10">
-            <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center justify-center gap-1.5">
-              {user?.firstName}
-              {user?.username && <span className="text-slate-400 font-medium text-sm">(@{user.username})</span>}
-              <button 
-                onClick={() => setIsFAQOpen(true)}
-                className="group relative w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 transition-all hover:scale-110 active:scale-95 ml-0.5"
-              >
-                <div className="absolute inset-0 bg-amber-400 rounded-full animate-ping opacity-20 group-hover:opacity-40"></div>
-                <div className="absolute inset-0 bg-amber-300 rounded-full blur-sm opacity-40 animate-pulse"></div>
-                <HelpCircle className="w-3.5 h-3.5 relative z-10 drop-shadow-[0_0_3px_rgba(251,191,36,0.5)]" />
-              </button>
+
+          {/* Profile Avatar & Identity Info */}
+          <div className="px-5 pb-5 -mt-10 relative z-10 flex flex-col items-center text-center">
+            <div className="relative mb-2.5">
+              <div className="w-20 h-20 bg-white rounded-full overflow-hidden border-4 border-white shadow-[0_8px_24px_rgba(15,23,42,0.12)]">
+                {user?.photoUrl ? (
+                  <img src={user.photoUrl} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className={cn(
+                    "w-full h-full flex items-center justify-center font-black text-2xl uppercase tracking-wide",
+                    getTelegramGradient(nameForGradient)
+                  )}>
+                    {getInitials()}
+                  </div>
+                )}
+              </div>
+              <div className="absolute bottom-0.5 right-0.5 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white shadow-sm">
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+              </div>
+            </div>
+
+            <h2 className="text-lg font-black text-slate-900 tracking-tight leading-snug">
+              {user?.firstName || 'Miner'}
             </h2>
-            <div className="flex items-center justify-center gap-1.5 mt-1.5">
-              <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">Verified</span>
-              <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">ID: {user?.id}</span>
+
+            <div className="flex items-center justify-center gap-2 mt-1 text-xs font-semibold text-slate-500">
+              {user?.username && (
+                <>
+                  <span className="text-slate-500" dir="ltr">@{user.username}</span>
+                  <span aria-hidden="true" className="text-slate-300">·</span>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={handleCopyUserId}
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900 transition-colors font-mono text-[11px]"
+              >
+                <span>ID: {user?.id}</span>
+                {copiedUserId ? (
+                  <Check className="w-3 h-3 text-emerald-600" />
+                ) : (
+                  <Copy className="w-3 h-3 text-slate-400" />
+                )}
+              </button>
+            </div>
+
+            {/* Secondary Account Telemetry Bar */}
+            <div className="w-full mt-4 pt-3.5 border-t border-slate-100 grid grid-cols-3 gap-2 text-center">
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-semibold text-slate-400">Daily Rate</span>
+                <span className="text-xs font-black text-slate-900 font-mono tabular-nums mt-0.5 flex items-center justify-center">
+                  <USDT amount={'+' + formatUSDT(user?.miningRate || 100)} size="text-xs text-slate-900" iconSize="w-3.5 h-3.5" />
+                </span>
+              </div>
+              <div className="flex flex-col items-center border-x border-slate-100">
+                <span className="text-[10px] font-semibold text-slate-400">Active Friends</span>
+                <span className="text-xs font-black text-slate-900 font-mono tabular-nums mt-0.5">
+                  {totalReferrals} Referrals
+                </span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-semibold text-slate-400">NFT Tier</span>
+                <span className="text-xs font-black text-indigo-600 mt-0.5">
+                  {(user?.hasNft || 0) >= 1 ? `Level ${user?.hasNft}` : 'Standard'}
+                </span>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -369,49 +439,60 @@ export function ProfileTab() {
         {/* Admin Panel Entry - EXCLUSIVELY FOR sekanedr_is */}
         {user?.username?.toLowerCase() === 'sekanedr_is' && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-[20px] p-4 text-white shadow-[0_8px_25px_rgba(245,158,11,0.25)] flex items-center justify-between cursor-pointer my-1.5"
+            className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-[22px] p-4 text-white border border-amber-500/30 shadow-[0_10px_25px_rgba(15,23,42,0.16)] flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
             onClick={handleOpenAdminPanel}
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white shrink-0">
-                <ShieldAlert className="w-5 h-5" />
+              <div className="w-11 h-11 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-slate-950 shrink-0 shadow-md shadow-amber-500/20">
+                <ShieldAlert className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div className="text-left">
-                <h4 className="text-xs font-black uppercase tracking-wider">Admin Panel</h4>
-                <p className="text-[10px] text-amber-100 font-bold">Real-time platform metrics & stats</p>
+                <h4 className="text-xs font-black tracking-wide text-white">Executive Admin Panel</h4>
+                <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Live 24h active users, total users & withdrawals</p>
               </div>
             </div>
-            <span className="text-[10px] font-black bg-white text-orange-600 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm">
-              ENTER
+            <span className="text-[10px] font-black bg-amber-400 text-slate-950 px-3.5 py-2 rounded-xl tracking-wider shadow-sm whitespace-nowrap shrink-0">
+              OPEN
             </span>
           </motion.div>
         )}
 
-        {/* Stats Grid */}
+        {/* Financial Balance & Withdrawn Cards */}
         <div className="grid grid-cols-2 gap-3">
           <motion.div 
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-slate-900 rounded-[20px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.1)] flex flex-col text-white"
+            transition={{ delay: 0.05 }}
+            className="bg-slate-900 rounded-[24px] p-4 shadow-[0_10px_25px_rgba(15,23,42,0.12)] flex flex-col justify-between text-white relative overflow-hidden"
           >
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Available</p>
-            <div className="flex items-center gap-1 min-w-0 w-full">
-              <USDT amount={formatUSDT(user?.balance || 0)} size="text-lg sm:text-xl text-white" iconSize="w-4 h-4 sm:w-5 sm:h-5 brightness-0 invert" />
+            <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-emerald-500/15 blur-xl pointer-events-none" />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-slate-400">Available Balance</span>
+              <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center text-emerald-400">
+                <Wallet className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="flex items-center gap-1 min-w-0 w-full font-mono tabular-nums">
+              <USDT amount={formatUSDT(user?.balance || 0)} size="text-lg sm:text-xl text-white" iconSize="w-5 h-5" />
             </div>
           </motion.div>
           
           <motion.div 
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-[20px] p-4 shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-slate-100 flex flex-col"
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-[24px] p-4 shadow-[0_8px_25px_rgba(15,23,42,0.03)] border border-slate-200/70 flex flex-col justify-between"
           >
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Withdrawn</p>
-            <div className="flex items-center gap-1 min-w-0 w-full">
-              <USDT amount={formatUSDT(user?.totalWithdrawn || 0)} size="text-lg sm:text-xl text-slate-900" iconSize="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-slate-400">Total Withdrawn</span>
+              <div className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="flex items-center gap-1 min-w-0 w-full font-mono tabular-nums">
+              <USDT amount={formatUSDT(user?.totalWithdrawn || 0)} size="text-lg sm:text-xl text-slate-900" iconSize="w-5 h-5" />
             </div>
           </motion.div>
         </div>
@@ -419,100 +500,105 @@ export function ProfileTab() {
         {/* My NFT Collection - ONLY IF OWNED */}
         {user?.hasNft && user.hasNft >= 1 && (
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-[24px] p-5 shadow-[0_12px_40px_rgba(0,0,0,0.06)] border border-slate-100 flex flex-col relative overflow-hidden"
+            className="bg-white rounded-[26px] p-5 shadow-[0_10px_30px_rgba(15,23,42,0.04)] border border-slate-200/70 flex flex-col relative overflow-hidden"
           >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-bl-[100px] -z-0 opacity-40"></div>
-            
-            <div className="flex items-center justify-between mb-4 relative z-10">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
+            <div className="flex items-center justify-between mb-3.5 relative z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                  <Award className="w-4 h-4" />
                 </div>
-                <h3 className="text-[14px] font-black text-slate-900 tracking-tight uppercase">My NFT Collection</h3>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 tracking-tight">My Active NFT</h3>
+                  <p className="text-[10px] font-semibold text-slate-400">Staked & boosting mining power</p>
+                </div>
               </div>
-              <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">STAKED & MINING</span>
+              <span className="text-[10px] font-bold text-emerald-700">
+                Active
+              </span>
             </div>
 
-            <div className="bg-slate-50/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-3 flex items-center gap-4 relative z-10">
-              <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-white shadow-sm shrink-0">
+            <div className="bg-slate-50 rounded-2xl p-3.5 flex items-center gap-3.5 relative z-10">
+              <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 shadow-sm shrink-0">
                 <img 
                   src={user.hasNft === 1 
                     ? 'https://i.ibb.co/dJtkVSVV/file-0000000047a48211926b535652563852.png' 
                     : 'https://i.ibb.co/Xx5L13HJ/file-00000000b9f481f491fc3471e26e01db.png'} 
                   alt="My NFT" 
                   className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="flex flex-col flex-1">
-                <div className="flex items-center gap-1.5">
-                   <span className={cn(
-                     "text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md",
-                     user.hasNft === 1 ? "bg-amber-100 text-amber-700" : "bg-indigo-100 text-indigo-700"
-                   )}>
-                     Level {user.hasNft}
-                   </span>
-                   <span className="text-[9px] font-bold text-slate-400">ID: #NFT-{user.id.slice(-4).toUpperCase()}</span>
+              <div className="flex flex-col flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+                  <span className={cn(user.hasNft === 1 ? "text-amber-700" : "text-indigo-700")}>
+                    Level {user.hasNft}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono">#NFT-{user.id.slice(-4).toUpperCase()}</span>
                 </div>
-                <h4 className="text-[14px] font-black text-slate-900 mt-0.5">
+                <h4 className="text-sm font-black text-slate-900 mt-0.5 truncate">
                   {user.hasNft === 1 ? 'Bronze NFT (Lvl 1)' : 'Silver NFT (Lvl 2)'}
                 </h4>
-                <div className="flex items-center gap-1.5 mt-1">
-                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-                   <span className="text-[10px] font-black text-emerald-600 uppercase tracking-tighter">
-                     {user.hasNft === 1 ? '+1.00 USDT/Day' : '+3.50 USDT/Day'} Boost Active
-                   </span>
-                </div>
+                <span className="text-[11px] font-extrabold text-emerald-600 mt-0.5 flex items-center gap-1">
+                  <USDT amount={user.hasNft === 1 ? '+1.00' : '+3.50'} size="text-[11px] text-emerald-600" iconSize="w-3.5 h-3.5" />
+                  <span>/ Day Boost</span>
+                </span>
               </div>
-              <div className="w-10 h-10 bg-white rounded-full border border-slate-100 flex items-center justify-center shadow-sm">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              <div className="w-9 h-9 bg-white rounded-full border border-slate-200/80 flex items-center justify-center shadow-xs shrink-0">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               </div>
             </div>
           </motion.div>
         )}
 
-        {/* NFT Divider */}
-        <div className="border-t border-slate-200/80 my-2"></div>
-
         {/* NFT Marketplace Section */}
         <motion.div 
           id="nft-marketplace"
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col"
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-[28px] p-5 shadow-[0_10px_35px_rgba(15,23,42,0.04)] border border-slate-200/70 flex flex-col"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-indigo-600 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-black text-slate-900 tracking-tight">Premium NFT Access</h3>
-              <p className="text-[10px] text-slate-400 font-bold">Unlocks withdrawals & boosts mining speed</p>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-black text-slate-900 tracking-tight">Mining NFT Passes</h3>
+                <p className="text-[11px] text-slate-500 font-medium">Unlocks instant withdrawals & daily boost</p>
+              </div>
             </div>
             {(user?.hasNft || 0) >= 1 && (
-              <span className="ml-auto text-[9px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100 flex items-center gap-1 shrink-0">
-                Active Member <Check className="w-2.5 h-2.5" />
+              <span className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 shrink-0">
+                <Check className="w-3 h-3" /> Verified
               </span>
             )}
           </div>
 
-          {/* TON Wallet Connection Button */}
-          <div className="flex flex-col items-center justify-center p-4 bg-slate-50/70 border border-slate-100 rounded-2xl mb-4 relative overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
-            <p className="text-[10px] text-slate-500 font-bold mb-2.5 text-center leading-relaxed">
-              {currentTonAddress 
-                ? `Connected Wallet: ${currentTonAddress.slice(0, 6)}...${currentTonAddress.slice(-6)}` 
-                : 'Connect your TON wallet to buy NFTs using secure decentralized payments.'}
-            </p>
+          {/* TON Wallet Connection Dock */}
+          <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl mb-4 border border-slate-200/60">
+            <div className="flex items-center gap-1.5 mb-2.5 text-[11px] font-semibold text-slate-600 text-center">
+              {currentTonAddress ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="font-mono text-slate-800">
+                    {currentTonAddress.slice(0, 6)}...{currentTonAddress.slice(-6)}
+                  </span>
+                </>
+              ) : (
+                <span>Connect your TON wallet for instant on-chain NFT minting</span>
+              )}
+            </div>
             <div className="scale-95 origin-center">
               <TonConnectButton />
             </div>
           </div>
 
           {/* NFT Grid - Two NFTs per row */}
-          <div className="grid grid-cols-2 gap-3.5">
+          <div className="grid grid-cols-2 gap-3">
             {[
               {
                 id: 'lvl1',
@@ -542,51 +628,57 @@ export function ProfileTab() {
               return (
                 <motion.div
                   key={nft.id}
-                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedNft(nft)}
                   className={cn(
-                    "relative bg-slate-50 border rounded-2xl p-2.5 flex flex-col items-center text-center cursor-pointer transition-all",
-                    isOwned ? "border-emerald-300 bg-emerald-50/20" : "border-slate-200/80 hover:border-indigo-200"
+                    "group relative bg-slate-50/80 border rounded-2xl p-3 flex flex-col text-left cursor-pointer transition-all",
+                    isOwned
+                      ? "border-emerald-400 bg-emerald-50/20"
+                      : "border-slate-200/80 hover:border-slate-300 hover:bg-white"
                   )}
                 >
                   {isOwned && (
-                    <div className="absolute top-1.5 right-1.5 bg-emerald-500 text-white rounded-full p-0.5 z-10 shadow-sm">
-                      <Check className="w-3 h-3" />
+                    <div className="absolute top-2.5 right-2.5 bg-emerald-600 text-white rounded-full p-1 z-10 shadow-sm">
+                      <Check className="w-3 h-3 stroke-[3]" />
                     </div>
                   )}
                   
-                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-200/50 mb-2 relative">
+                  <div className="w-full aspect-square rounded-xl overflow-hidden bg-slate-200/60 mb-2.5 relative">
                     <img 
                       src={nft.image} 
                       alt={nft.name} 
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute bottom-1 right-1 bg-slate-900/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-black text-white uppercase tracking-wider">
+                    <div className="absolute bottom-2 right-2 bg-slate-950/85 backdrop-blur-md px-2 py-0.5 rounded-lg text-[10px] font-black text-white font-mono tabular-nums">
                       {nft.price} TON
                     </div>
                   </div>
                   
-                  <h4 className="text-[11px] font-black text-slate-800 line-clamp-1 leading-tight">{nft.name}</h4>
-                  <p className="text-[9px] font-black text-indigo-600 mt-1">{nft.boost}</p>
+                  <h4 className="text-xs font-black text-slate-900 line-clamp-1 leading-tight">{nft.name}</h4>
+                  <div className="text-[10px] font-extrabold text-indigo-600 mt-0.5 flex items-center gap-1">
+                    <USDT amount={nft.level === 1 ? '+1.00' : '+3.50'} size="text-[10px] text-indigo-600" iconSize="w-3.5 h-3.5" />
+                    <span>/ 24h Rate</span>
+                  </div>
 
-                  {/* NFT Progress Bar */}
-                  <div className="w-full mt-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-tighter">
-                      <span className="text-slate-400">Minted</span>
-                      <span className="text-slate-600">{soldCount.toLocaleString()}/{totalCount.toLocaleString()}</span>
+                  {/* NFT Supply Progress Bar */}
+                  <div className="w-full mt-3 pt-2.5 border-t border-slate-200/60 space-y-1.5">
+                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-500 font-mono tabular-nums">
+                      <span>Minted</span>
+                      <span>{Math.round(progress)}%</span>
                     </div>
                     <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${progress}%` }}
+                      <div 
+                        style={{ width: `${progress}%` }}
                         className={cn(
-                          "h-full rounded-full transition-all duration-1000",
-                          nft.level === 1 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" : "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                          "h-full rounded-full transition-all duration-700",
+                          nft.level === 1 ? "bg-amber-500" : "bg-indigo-600"
                         )}
                       />
                     </div>
+                    <p className="text-[9px] font-semibold text-slate-400 font-mono tabular-nums text-right">
+                      {soldCount.toLocaleString()} / {totalCount.toLocaleString()}
+                    </p>
                   </div>
                 </motion.div>
               );
@@ -594,28 +686,29 @@ export function ProfileTab() {
           </div>
         </motion.div>
 
-        {/* NFT Divider */}
-        <div className="border-t border-slate-200/80 my-2"></div>
-
-        {/* Withdraw Form */}
+        {/* Withdraw Form Card */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative overflow-hidden"
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-[28px] p-5 shadow-[0_10px_35px_rgba(15,23,42,0.04)] border border-slate-200/70 relative overflow-hidden"
         >
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-[100px] -z-0 opacity-50"></div>
-          
-          <div className="flex items-center gap-2 mb-5 relative z-10">
-            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-black text-slate-900 tracking-tight flex items-center gap-1.5">Withdraw <USDT size="text-[15px]" iconSize="w-4 h-4" /></h3>
+          <div className="flex items-center justify-between mb-4 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                <Wallet className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-black text-slate-900 tracking-tight flex items-center gap-1.5">
+                  <span>Withdraw</span>
+                  <USDT size="text-[15px]" iconSize="w-4 h-4" />
+                </h3>
+                <p className="text-[11px] font-medium text-slate-500">Fast payout to TRC20 or BEP20 wallet</p>
+              </div>
             </div>
           </div>
 
-          {/* Elegant Referral or NFT Lock/Unlock Notice */}
+          {/* Referral & NFT Lock/Unlock Notice (Preserving exact hidden & visible elements) */}
           {(() => {
             const hasReferrals = totalReferrals >= 3;
             const hasNft = (user?.hasNft || 0) >= 1;
@@ -624,28 +717,30 @@ export function ProfileTab() {
             if (isWithdrawalUnlocked) {
               return (
                 <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="mb-4 bg-emerald-50 border border-emerald-200/60 rounded-2xl p-4 flex flex-col space-y-1.5 relative overflow-hidden z-10 shadow-[0_2px_12px_rgba(16,185,129,0.04)]"
+                  className="mb-4 bg-emerald-50/80 border border-emerald-200/70 rounded-2xl p-4 flex flex-col space-y-1.5 relative z-10"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 animate-bounce">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <h4 className="text-xs font-black text-emerald-950">Verification Complete</h4>
                     </div>
-                    <h4 className="text-[11px] font-black text-emerald-950 uppercase tracking-wider">Verification Complete</h4>
-                    <span className="ml-auto text-[9px] font-black text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                      Active Status <Check className="w-2.5 h-2.5" />
+                    <span className="text-[10px] font-bold text-emerald-700">
+                      Unlocked
                     </span>
                   </div>
-                  <p className="text-[10px] text-emerald-800 leading-relaxed font-bold">
-                    🎉 Your account is fully verified. Withdrawals are now active and will be processed immediately.
+                  <p className="text-[11px] text-emerald-800 leading-relaxed font-medium">
+                    Your account is verified. Withdrawals are now enabled.
                   </p>
                 </motion.div>
               );
             }
 
+            const referralProgressPct = Math.min(100, Math.round((totalReferrals / 3) * 100));
+
             return (
-              <div className="mb-4 bg-amber-50/70 border border-amber-200/50 rounded-2xl p-4 flex flex-col space-y-2.5 relative overflow-hidden z-10">
+              <div className="mb-4 bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex flex-col space-y-2 relative z-10">
                 <div className="flex items-center gap-2 hidden">
                   <div className="w-6 h-6 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
                     <Lock className="w-3.5 h-3.5" />
@@ -655,17 +750,32 @@ export function ProfileTab() {
                 <p className="text-[10px] text-amber-800 leading-relaxed font-bold hidden">
                   Complete these steps to unlock your first withdrawal:
                 </p>
-                <div className="space-y-1.5 pl-1">
-                  <div className={cn(
-                    "flex items-center justify-between text-[10px] font-extrabold px-2.5 py-1 rounded-xl",
-                    hasReferrals ? "bg-emerald-100/40 text-emerald-900" : "bg-amber-100/40 text-amber-900"
-                  )}>
-                    <span className="flex items-center gap-1.5">
-                      {hasReferrals ? <Check className="w-3 h-3" /> : "1."} Refer 3 active friends
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-2">
+                      {hasReferrals ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Users className="w-4 h-4 text-amber-600 shrink-0" />
+                      )}
+                      <span>Refer 3 active friends</span>
                     </span>
-                    <span className={cn("px-1.5 py-0.5 rounded text-[8px]", hasReferrals ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800")}>
+                    <span className={cn(
+                      "font-mono tabular-nums text-xs font-black",
+                      hasReferrals ? "text-emerald-600" : "text-amber-700"
+                    )}>
                       {totalReferrals} / 3
                     </span>
+                  </div>
+                  {/* Subtle visual progress bar for the 3 referrals requirement */}
+                  <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      style={{ width: `${referralProgressPct}%` }}
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        hasReferrals ? "bg-emerald-500" : "bg-amber-500"
+                      )}
+                    />
                   </div>
                   <div className={cn(
                     "flex items-center justify-between text-[10px] font-extrabold px-2.5 py-1 rounded-xl hidden",
@@ -683,26 +793,27 @@ export function ProfileTab() {
             );
           })()}
 
-          <form onSubmit={handleWithdraw} className="space-y-3 relative z-10">
+          <form onSubmit={handleWithdraw} className="space-y-3.5 relative z-10">
             {(() => {
               const isWithdrawalUnlocked = totalReferrals >= 3;
               return (
                 <>
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1 flex flex-wrap items-center gap-1">
-                      Amount 
-                      <span className="lowercase font-medium tracking-normal text-slate-400 ml-1 inline-flex items-center gap-1">
-                        (Min: <USDT amount={MIN_WITHDRAWAL.toString()} size="text-[9px]" iconSize="w-3 h-3 inline-block -mt-0.5" />)
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-0.5">
+                      <label className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                        <span>Withdrawal Amount</span>
+                        <button
+                          type="button"
+                          onClick={() => showToast('The minimum withdrawal threshold has been increased to 6 USDT due to high withdrawal request volume.', 'info')}
+                          className="w-4 h-4 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition-colors"
+                        >
+                          <HelpCircle className="w-3 h-3" />
+                        </button>
+                      </label>
+                      <span className="text-[11px] font-semibold text-slate-400 inline-flex items-center gap-1 font-mono tabular-nums">
+                        Min: <USDT amount={MIN_WITHDRAWAL.toString()} size="text-[11px]" iconSize="w-3 h-3 inline-block -mt-0.5" />
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => showToast('The minimum withdrawal threshold has been increased to 6 USDT due to high withdrawal request volume.', 'info')}
-                        className="ml-1 flex items-center justify-center relative w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
-                      >
-                        <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-30"></span>
-                        <HelpCircle className="w-3 h-3" />
-                      </button>
-                    </label>
+                    </div>
                     <div className="relative">
                       <input 
                         type="number"
@@ -712,29 +823,32 @@ export function ProfileTab() {
                         value={withdrawAmount}
                         onChange={(e) => setWithdrawAmount(e.target.value)}
                         placeholder="0.0000"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-black text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:bg-slate-100/50 disabled:cursor-not-allowed"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 pl-4 pr-16 text-slate-900 font-black text-sm font-mono tabular-nums focus:outline-none focus:bg-white focus:border-slate-900 transition-all placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:bg-slate-100/60 disabled:cursor-not-allowed"
                       />
                       <motion.button 
-                        whileTap={{ scale: 0.95 }}
+                        whileTap={{ scale: 0.96 }}
                         type="button" 
                         disabled={!isWithdrawalUnlocked}
                         onClick={() => setWithdrawAmount(formatUSDT(user?.balance || 0))}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg hover:bg-emerald-200 transition-colors uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-black text-emerald-800 bg-emerald-100/90 hover:bg-emerald-200 px-3 py-1.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         MAX
                       </motion.button>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-1">Wallet Address (TRC20/BEP20)</label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-0.5">
+                      <label className="text-[11px] font-bold text-slate-600">Destination Wallet Address</label>
+                      <span className="text-[10px] font-semibold text-slate-400">TRC20 · BEP20</span>
+                    </div>
                     <input 
                       type="text"
                       disabled={!isWithdrawalUnlocked}
                       value={walletAddress}
                       onChange={(e) => setWalletAddress(e.target.value)}
-                      placeholder="T..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-slate-900 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:bg-slate-100/50 disabled:cursor-not-allowed"
+                      placeholder="Enter TRC20 or BEP20 address..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-slate-900 font-bold text-xs font-mono focus:outline-none focus:bg-white focus:border-slate-900 transition-all placeholder:text-slate-300 placeholder:font-sans placeholder:font-medium disabled:opacity-50 disabled:bg-slate-100/60 disabled:cursor-not-allowed"
                     />
                   </div>
 
@@ -742,15 +856,15 @@ export function ProfileTab() {
                     whileTap={{ scale: 0.98 }}
                     type="submit"
                     disabled={isWithdrawing || !isWithdrawalUnlocked}
-                    className="w-full mt-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,0,0,0.1)]"
+                    className="w-full h-12 mt-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-[0_8px_20px_rgba(15,23,42,0.12)]"
                   >
-                    {!isWithdrawalUnlocked ? <Lock className="w-3.5 h-3.5 text-slate-400 animate-pulse" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
+                    {!isWithdrawalUnlocked ? <Lock className="w-3.5 h-3.5 text-slate-400" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
                     <span>
                       {isWithdrawing 
-                        ? 'PROCESSING...' 
+                        ? 'Processing Request...' 
                         : !isWithdrawalUnlocked 
-                          ? 'REQUIREMENTS NOT MET' 
-                          : 'REQUEST WITHDRAWAL'
+                          ? 'Refer 3 Friends to Unlock' 
+                          : 'Request Withdrawal'
                       }
                     </span>
                   </motion.button>
@@ -760,51 +874,74 @@ export function ProfileTab() {
           </form>
         </motion.div>
 
-        {/* History */}
+        {/* Withdrawal History Card */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100"
+          transition={{ delay: 0.25 }}
+          className="bg-white rounded-[28px] p-5 shadow-[0_10px_35px_rgba(15,23,42,0.04)] border border-slate-200/70"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <History className="w-3.5 h-3.5 text-slate-400" />
-            <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Withdrawal History</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600">
+                <History className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 tracking-tight">Withdrawal History</h3>
+                <p className="text-[10px] font-medium text-slate-400">Recent payout transactions</p>
+              </div>
+            </div>
+            {history.length > 0 && (
+              <span className="text-[11px] font-bold text-slate-400 font-mono tabular-nums">
+                {history.length} {history.length === 1 ? 'record' : 'records'}
+              </span>
+            )}
           </div>
           
           {history.length > 0 ? (
-            <div className="space-y-2">
-              {history.map((tx: any, index: number) => (
-                <motion.div 
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.5 + (index * 0.1) }}
-                  key={tx.id} 
-                  className="flex justify-between items-center p-3 bg-slate-50 border border-slate-100 rounded-xl"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-xs font-black text-slate-900"><USDT amount={formatUSDT(tx.amount)} size="text-xs" iconSize="w-3 h-3" /></span>
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{new Date(tx.createdAt).toLocaleDateString()}</span>
+            <div className="divide-y divide-slate-100">
+              {history.map((tx: any, index: number) => {
+                const status = (tx.status || 'pending').toLowerCase();
+                return (
+                  <div 
+                    key={tx.id || index} 
+                    className="py-3 first:pt-0 last:pb-0 flex justify-between items-center gap-3"
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <div className="text-xs font-black text-slate-900 font-mono tabular-nums">
+                        <USDT amount={formatUSDT(tx.amount)} size="text-xs" iconSize="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium mt-0.5">
+                        <span>{new Date(tx.createdAt).toLocaleDateString()}</span>
+                        {tx.walletAddress && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="font-mono truncate max-w-[120px]">{tx.walletAddress}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center shrink-0">
+                      <span className={cn(
+                        "text-[11px] font-bold capitalize",
+                        status === 'completed' ? "text-emerald-600" :
+                        status === 'rejected' ? "text-red-600" :
+                        "text-amber-600"
+                      )}>
+                        {status}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <span className={cn(
-                      "text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded border",
-                      tx.status === 'completed' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                      tx.status === 'rejected' ? "bg-red-50 text-red-600 border-red-100" :
-                      "bg-amber-50 text-amber-600 border-amber-100"
-                    )}>
-                      {tx.status}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <div className="py-6 flex flex-col items-center justify-center text-center">
-              <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center mb-2">
-                <History className="w-4 h-4 text-slate-300" />
+            <div className="py-8 flex flex-col items-center justify-center text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+              <div className="w-10 h-10 bg-white rounded-full border border-slate-200/80 flex items-center justify-center mb-2 shadow-2xs">
+                <History className="w-4 h-4 text-slate-400" />
               </div>
-              <p className="text-xs font-bold text-slate-400">No withdrawal history</p>
+              <p className="text-xs font-bold text-slate-600">No withdrawal history yet</p>
+              <p className="text-[10px] font-medium text-slate-400 mt-0.5">Your completed payouts will appear here</p>
             </div>
           )}
         </motion.div>
@@ -827,12 +964,12 @@ export function ProfileTab() {
               className="w-full max-w-md bg-white rounded-t-[32px] p-6 pb-9 sm:pb-6 shadow-2xl border-t border-slate-100 flex flex-col h-[75vh] relative z-10 overflow-hidden"
             >
               {/* Grab handle/indicator */}
-              <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-4 shrink-0"></div>
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 shrink-0"></div>
               
               {/* Close Button */}
               <button 
                 onClick={() => setSelectedNft(null)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -840,45 +977,48 @@ export function ProfileTab() {
               {/* Scrollable details container */}
               <div className="flex-1 overflow-y-auto space-y-5 pr-1 py-2">
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-36 h-36 rounded-2xl overflow-hidden bg-slate-50 border-2 border-slate-100 shadow-md mb-3 relative">
+                  <div className="w-36 h-36 rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 shadow-md mb-3 relative">
                     <img 
                       src={selectedNft.image} 
                       alt={selectedNft.name} 
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute bottom-1.5 right-1.5 bg-slate-950/80 backdrop-blur-md px-2.5 py-0.5 rounded-md text-[10px] font-black text-white uppercase tracking-wider">
+                    <div className="absolute bottom-2 right-2 bg-slate-950/85 backdrop-blur-md px-2.5 py-0.5 rounded-lg text-[10px] font-black text-white font-mono tabular-nums">
                       {selectedNft.price} TON
                     </div>
                   </div>
                   
-                  <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full mb-1">
-                    Level {selectedNft.level} premium nft
+                  <span className="text-[11px] font-bold text-indigo-600 mb-0.5">
+                    Level {selectedNft.level} Mining Pass
                   </span>
                   <h3 className="text-base font-black text-slate-900 tracking-tight">{selectedNft.name}</h3>
-                  <p className="text-xs font-black text-indigo-600 mt-1">{selectedNft.boost} Boost</p>
+                  <div className="text-xs font-extrabold text-emerald-600 mt-0.5 flex items-center justify-center gap-1">
+                    <USDT amount={selectedNft.level === 1 ? '+1.00' : '+3.50'} size="text-xs text-emerald-600" iconSize="w-4 h-4" />
+                    <span>/ 24h Rate Boost</span>
+                  </div>
                 </div>
 
-                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-3">
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 space-y-3.5">
                   <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                       <Zap className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-slate-800">Mining Rate Boost</h4>
-                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-0.5">
-                        Purchasing this NFT permanently adds <span className="font-extrabold text-indigo-600">{selectedNft.boost}</span> to your mining engine, allowing you to earn USDT significantly faster!
+                      <h4 className="text-xs font-black text-slate-900">Mining Rate Boost</h4>
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                        Purchasing this NFT permanently adds <span className="font-extrabold text-indigo-600">{selectedNft.boost}</span> to your mining engine, allowing you to earn USDT significantly faster.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                  <div className="flex gap-3 pt-3 border-t border-slate-200/60">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                       <CheckCircle2 className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="text-xs font-black text-slate-800">Unlocks Instant Withdrawals</h4>
-                      <p className="text-[10px] text-slate-500 font-medium leading-relaxed mt-0.5">
+                      <h4 className="text-xs font-black text-slate-900">Unlocks Instant Withdrawals</h4>
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-0.5">
                         {selectedNft.description}
                       </p>
                     </div>
@@ -886,8 +1026,8 @@ export function ProfileTab() {
                 </div>
 
                 <div className="text-center px-4">
-                  <p className="text-[10px] text-slate-400 font-bold leading-normal">
-                    This is a real payment process verified secure on the TON Blockchain. Re-routing or canceling will abort the operation.
+                  <p className="text-[10px] text-slate-400 font-medium leading-normal">
+                    Verified on-chain payment via TON Connect. Canceling in your wallet will safely abort the transaction.
                   </p>
                 </div>
               </div>
@@ -895,36 +1035,34 @@ export function ProfileTab() {
               {/* Action Payment Section */}
               <div className="pt-4 border-t border-slate-100 shrink-0 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest">Total cost</span>
-                    <p className="text-lg font-black text-slate-900">{selectedNft.price} TON</p>
-                  </div>
+                  <span className="text-xs text-slate-500 font-bold">Total Mint Price</span>
+                  <p className="text-lg font-black text-slate-900 font-mono tabular-nums">{selectedNft.price} TON</p>
                 </div>
 
                 {user?.hasNft === selectedNft.level ? (
                   <button
                     disabled
-                    className="w-full bg-slate-100 text-slate-400 text-xs font-black py-3.5 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                    className="w-full h-12 bg-slate-100 text-slate-400 text-xs font-black rounded-2xl flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
                   >
                     <CheckCircle2 className="w-4 h-4 text-slate-400" />
-                    <span>YOU ALREADY OWN THIS NFT</span>
+                    <span>Already Owned</span>
                   </button>
                 ) : (
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     disabled={isPaying}
                     onClick={() => handlePurchase(selectedNft)}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black py-3.5 rounded-xl shadow-[0_4px_16px_rgba(79,70,229,0.25)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-2xl shadow-[0_8px_20px_rgba(79,70,229,0.25)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isPaying ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        <span>PROCESSING TON TRANSACTION...</span>
+                        <span>Confirming TON Transaction...</span>
                       </>
                     ) : (
                       <>
                         <Wallet className="w-4 h-4" />
-                        <span>PAY {selectedNft.price} TON & CLAIM NFT</span>
+                        <span>Pay {selectedNft.price} TON & Claim NFT</span>
                       </>
                     )}
                   </motion.button>

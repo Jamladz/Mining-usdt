@@ -687,8 +687,8 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                             <span className="text-base font-black text-amber-700 font-mono">
                               {statsData.withdrawalsSummary?.pendingCount || 0}
                             </span>
-                            <div className="text-[9px] font-black text-amber-900/80 mt-0.5 truncate">
-                              {formatUSDT(statsData.withdrawalsSummary?.pendingAmount || 0)} USDT
+                            <div className="text-[9px] font-black text-amber-900/80 mt-0.5 truncate flex items-center gap-0.5">
+                              <USDT amount={formatUSDT(statsData.withdrawalsSummary?.pendingAmount || 0)} size="text-[9px]" iconSize="w-3 h-3" />
                             </div>
                           </div>
 
@@ -705,8 +705,8 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                             <span className="text-base font-black text-emerald-700 font-mono">
                               {statsData.withdrawalsSummary?.completedCount || 0}
                             </span>
-                            <div className="text-[9px] font-black text-emerald-900/80 mt-0.5 truncate">
-                              {formatUSDT(statsData.withdrawalsSummary?.completedAmount || 0)} USDT
+                            <div className="text-[9px] font-black text-emerald-900/80 mt-0.5 truncate flex items-center gap-0.5">
+                              <USDT amount={formatUSDT(statsData.withdrawalsSummary?.completedAmount || 0)} size="text-[9px]" iconSize="w-3 h-3" />
                             </div>
                           </div>
 
@@ -745,8 +745,8 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                               <span className="text-[9px] font-bold text-slate-400 block">
                                 {activeLang === 'AR' ? 'إجمالي أرصدة المستخدمين' : 'Total User Balances'}
                               </span>
-                              <span className="text-xs font-black text-slate-900 font-mono">
-                                {formatUSDT(statsData.totalPlatformBalance || 0)} USDT
+                              <span className="text-xs font-black text-slate-900 font-mono flex items-center gap-1 mt-0.5">
+                                <USDT amount={formatUSDT(statsData.totalPlatformBalance || 0)} size="text-xs" iconSize="w-3.5 h-3.5" />
                               </span>
                             </div>
                             <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
@@ -861,8 +861,8 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                                   </div>
                                 </div>
                                 <div className="text-right shrink-0" dir="ltr">
-                                  <span className="text-[11px] font-black text-slate-900 block font-mono">
-                                    {formatUSDT(u.balance || 0)} USDT
+                                  <span className="text-[11px] font-black text-slate-900 flex items-center justify-end font-mono">
+                                    <USDT amount={formatUSDT(u.balance || 0)} size="text-[11px]" iconSize="w-3.5 h-3.5" />
                                   </span>
                                   <span className="text-[8px] font-bold text-slate-400">
                                     Refs: {u.referralsCount || 0} | NFT: {u.hasNft || 0}
@@ -1010,12 +1010,13 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                                     </div>
                                   </div>
 
-                                  <div className="text-right" dir="ltr">
-                                    <span className="text-sm font-black text-emerald-600 font-mono block">
-                                      {formatUSDT(u.balance || 0)} USDT
+                                  <div className="text-right flex flex-col items-end" dir="ltr">
+                                    <span className="text-sm font-black text-emerald-600 font-mono flex items-center">
+                                      <USDT amount={formatUSDT(u.balance || 0)} size="text-sm" iconSize="w-4 h-4" />
                                     </span>
-                                    <span className="text-[9px] font-bold text-slate-400">
-                                      Withdrawn: {formatUSDT(u.totalWithdrawn || 0)} USDT
+                                    <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1">
+                                      <span>Withdrawn:</span>
+                                      <USDT amount={formatUSDT(u.totalWithdrawn || 0)} size="text-[9px]" iconSize="w-3 h-3" />
                                     </span>
                                   </div>
                                 </div>
@@ -1160,10 +1161,10 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                                           {(w.userHasNft || 0) >= 1 ? `Lvl ${w.userHasNft}` : 'None'}
                                         </span>
                                       </div>
-                                      <div>
-                                        {activeLang === 'AR' ? 'الرصيد المتبقي:' : 'Balance:'}{' '}
-                                        <span className="font-black text-emerald-600">
-                                          {formatUSDT(w.userBalance || 0)} USDT
+                                      <div className="flex items-center justify-end gap-1">
+                                        <span>{activeLang === 'AR' ? 'الرصيد المتبقي:' : 'Balance:'}</span>
+                                        <span className="font-black text-emerald-600 inline-flex items-center">
+                                          <USDT amount={formatUSDT(w.userBalance || 0)} size="text-[9px]" iconSize="w-3 h-3" />
                                         </span>
                                       </div>
                                     </div>
@@ -1455,8 +1456,8 @@ export function AdminPanelModal({ isOpen, onClose, initData, showToast }: AdminP
                               </div>
 
                               <div className="text-right shrink-0" dir="ltr">
-                                <span className="text-xs font-black text-slate-900 font-mono block">
-                                  {formatUSDT(u.balance || 0)} USDT
+                                <span className="text-xs font-black text-slate-900 font-mono flex items-center justify-end">
+                                  <USDT amount={formatUSDT(u.balance || 0)} size="text-xs" iconSize="w-3.5 h-3.5" />
                                 </span>
                                 <div className="flex items-center justify-end gap-1 mt-0.5 text-[8px] font-black">
                                   <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">

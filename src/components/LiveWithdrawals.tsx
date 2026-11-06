@@ -133,95 +133,82 @@ export function LiveWithdrawals() {
   }, []);
 
   return (
-    <div className="bg-white rounded-[24px] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-slate-100 flex flex-col relative overflow-hidden">
+    <div className="bg-white rounded-[28px] p-5 shadow-[0_10px_35px_rgba(15,23,42,0.04)] border border-slate-200/70 flex flex-col relative overflow-hidden">
       {/* Live status header */}
-      <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+      <div className="flex items-center justify-between mb-3.5 pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
           </span>
-          <h3 className="font-black text-sm text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-            Live Withdrawals
+          <h3 className="font-black text-sm text-slate-900 tracking-tight">
+            Live Network Payouts
           </h3>
         </div>
-        <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full text-[10px] font-black border border-emerald-100/60">
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>SECURED</span>
+        <div className="flex items-center gap-1 text-emerald-700 text-[11px] font-bold">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Verified</span>
         </div>
       </div>
 
       {/* Main transactions container */}
-      <div className="space-y-3 min-h-[220px]">
+      <div className="divide-y divide-slate-100 min-h-[210px]">
         <AnimatePresence initial={false}>
           {list.map((item) => {
-            let countryBadge = '';
-            let countryLabel = '';
-            let countryClass = '';
+            let countryBadge = '🇸🇦';
+            let countryLabel = 'MENA';
 
-            if (item.country === 'AR') {
-              countryBadge = '🇸🇦';
-              countryLabel = 'Arab';
-              countryClass = 'bg-emerald-50/70 text-emerald-700 border border-emerald-100/40';
-            } else if (item.country === 'RU') {
+            if (item.country === 'RU') {
               countryBadge = '🇷🇺';
-              countryLabel = 'Rus';
-              countryClass = 'bg-blue-50/70 text-blue-700 border border-blue-100/40';
-            } else {
+              countryLabel = 'CIS';
+            } else if (item.country === 'IR') {
               countryBadge = '🇮🇷';
-              countryLabel = 'Persian';
-              countryClass = 'bg-amber-50/70 text-amber-700 border border-amber-100/40';
+              countryLabel = 'IR';
             }
 
             return (
               <motion.div
                 key={item.id}
-                initial={{ opacity: 0, y: -15, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                exit={{ opacity: 0, x: 20, height: 0 }}
-                transition={{ type: 'spring', stiffness: 500, damping: 40 }}
-                className="overflow-hidden"
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: 16 }}
+                transition={{ duration: 0.2 }}
+                className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3"
               >
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 hover:bg-slate-50 transition-all border border-slate-100/40 shadow-[0_1px_4px_rgba(0,0,0,0.01)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50/50 border border-indigo-100/30 flex items-center justify-center text-indigo-500 relative">
-                      <ArrowDownLeft className="w-4 h-4 text-indigo-500" />
-                      <span className="absolute -bottom-1 -right-1 text-[9px] filter drop-shadow-sm select-none">
-                        {countryBadge}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-700 relative shrink-0">
+                    <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                    <span className="absolute -bottom-1 -right-1 text-[10px] select-none">
+                      {countryBadge}
+                    </span>
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <span className="font-black text-slate-900 tracking-tight truncate">
+                        {maskUsername(item.username)}
+                      </span>
+                      <span aria-hidden="true" className="text-slate-300">·</span>
+                      <span className="text-[10px] font-semibold text-slate-500">
+                        {countryLabel}
                       </span>
                     </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-extrabold text-slate-800 tracking-tight">
-                          {maskUsername(item.username)}
-                        </span>
-                        <span className={`text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase tracking-wider border ${countryClass}`}>
-                          {countryLabel}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium">
-                        <span className="font-mono text-[9px] tracking-tight">{item.wallet}</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="text-slate-400 font-bold text-[9px]">{item.timeLabel}</span>
-                      </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium mt-0.5">
+                      <span className="font-mono tracking-tight">{item.wallet}</span>
+                      <span aria-hidden="true" className="text-slate-300">·</span>
+                      <span>{item.timeLabel}</span>
                     </div>
                   </div>
-                  
-                  <div className="bg-emerald-50/85 border border-emerald-100/40 px-2.5 py-1 rounded-xl shadow-[0_1px_5px_rgba(16,185,129,0.02)]">
-                    <USDT amount={item.amount.toFixed(2)} size="text-xs text-emerald-600 font-black" iconSize="w-3.5 h-3.5" />
-                  </div>
+                </div>
+                
+                <div className="font-mono tabular-nums shrink-0">
+                  <USDT amount={item.amount.toFixed(2)} size="text-xs text-emerald-600 font-black" iconSize="w-3.5 h-3.5" />
                 </div>
               </motion.div>
             );
           })}
         </AnimatePresence>
       </div>
-
-      <div className="mt-4 text-center text-[10px] font-bold text-slate-400 flex items-center justify-center gap-2">
-        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-        <span>Updating in real-time on TON blockchain</span>
-        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-      </div>
     </div>
   );
 }
+

@@ -90,7 +90,7 @@ export function WelcomeBonusSheet() {
             {/* Bonus Box showing USDT Logo directly in front of 0.5 */}
             <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl py-4 px-6 flex items-center justify-center gap-3 shadow-inner my-1">
               <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Reward:</span>
-              <USDT amount="0.5 USDT" size="text-3xl font-black text-slate-900" iconSize="w-8 h-8" />
+              <USDT amount="0.50" size="text-3xl font-black text-slate-900" iconSize="w-8 h-8" />
             </div>
 
             {/* Claim Button in English */}

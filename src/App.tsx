@@ -17,7 +17,13 @@ import { TonConnectUIProvider } from '@tonconnect/ui-react';
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState('home');
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
   const { user, setUser, showToast } = useApp();
+
+  const handleNavigateToTask = (taskId: string) => {
+    setHighlightedTaskId(taskId);
+    setCurrentTab('tasks');
+  };
 
   useEffect(() => {
     if (user && user.id) {
@@ -71,12 +77,12 @@ function AppContent() {
         <AnimatePresence mode="wait">
           {currentTab === 'home' && (
             <motion.div key="home" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              <HomeTab />
+              <HomeTab onNavigateToTask={handleNavigateToTask} />
             </motion.div>
           )}
           {currentTab === 'tasks' && (
             <motion.div key="tasks" className="flex flex-col h-full overflow-hidden" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-              <TasksTab />
+              <TasksTab highlightedTaskId={highlightedTaskId} onClearHighlight={() => setHighlightedTaskId(null)} />
             </motion.div>
           )}
           {currentTab === 'referrals' && (

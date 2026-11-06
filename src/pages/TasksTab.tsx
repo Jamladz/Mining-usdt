@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Header } from '../components/Header';
 import { USDT } from '../components/USDT';
 import { useApp } from '../context/AppContext';
-import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift, BookmarkPlus, Send, Wallet } from 'lucide-react';
-import { cn } from '@/src/lib/utils';
+import { Play, CheckCircle2, MonitorPlay, MousePointerClick, Smartphone, Globe, Gift, BookmarkPlus, Send, Wallet, Zap } from 'lucide-react';
+import { cn, formatUSDT } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface Task {
@@ -15,12 +15,36 @@ interface Task {
   action?: () => void;
 }
 
-export function TasksTab() {
+interface TasksTabProps {
+  highlightedTaskId?: string | null;
+  onClearHighlight?: () => void;
+}
+
+export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps = {}) {
   const { user, setUser, fetchUser, initData, addToHomeScreen, homeScreenStatus, canAddToHomeScreen } = useApp();
   const [completedTasksList, setCompletedTasksList] = useState<{ taskId: string; completedAt: number }[]>([]);
   const [loadingTask, setLoadingTask] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  useEffect(() => {
+    if (!highlightedTaskId) return;
+    const scrollTimer = setTimeout(() => {
+      const el = document.getElementById(`task-${highlightedTaskId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 180);
+
+    const clearTimer = setTimeout(() => {
+      onClearHighlight?.();
+    }, 6000);
+
+    return () => {
+      clearTimeout(scrollTimer);
+      clearTimeout(clearTimer);
+    };
+  }, [highlightedTaskId]);
   
   // Manual Tasks State
   const [manualTaskStatuses, setManualTaskStatuses] = useState<Record<string, { status: string; createdAt?: number; externalUsername?: string }>>({});
@@ -399,6 +423,24 @@ export function TasksTab() {
       return;
     }
 
+    if (task.id === 'sys_join_riftycoin') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after a short delay so the user has time to open the link
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_riftycoin', 'system', 5000);
+          showToast('🎉 Joined RiftyCoin Bot successfully! Boosted rate by +0.50 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 3000);
+      return;
+    }
+
     if (task.id === 'sys_join_giftsvault') {
       setLoadingTask(task.id);
       task.action?.();
@@ -651,6 +693,22 @@ export function TasksTab() {
 
   const sysTasks: Task[] = [
     { 
+      id: 'sys_join_riftycoin', 
+      title: 'Join RiftyCoin Bot', 
+      provider: 'system', 
+      icon: <Gift className="w-5 h-5" />,
+      rewardValue: '0.5',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/riftycoinbot?startapp=ref_1368899842';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_baat', 
       title: 'Baat', 
       provider: 'system', 
@@ -677,22 +735,6 @@ export function TasksTab() {
       action: () => {
         const tg = (window as any).Telegram?.WebApp;
         const link = 'https://t.me/GiftsVault_bot?startapp=ref_1368899842';
-        if (tg?.openTelegramLink) {
-          tg.openTelegramLink(link);
-        } else {
-          window.open(link, '_blank');
-        }
-      }
-    },
-    { 
-      id: 'sys_join_riftycoin', 
-      title: 'Join RiftyCoin Bot', 
-      provider: 'system', 
-      icon: <Play className="w-5 h-5" />,
-      rewardValue: '0.5',
-      action: () => {
-        const tg = (window as any).Telegram?.WebApp;
-        const link = 'https://t.me/riftycoinbot?startapp=ref_1368899842';
         if (tg?.openTelegramLink) {
           tg.openTelegramLink(link);
         } else {
@@ -856,41 +898,57 @@ export function TasksTab() {
 
   const activeSysTasks = sysTasks;
 
+  const allTasksCount = activeSysTasks.length + monetagTasks.length;
+  const completedCount = [...activeSysTasks, ...monetagTasks].filter(t => {
+    const info = getTaskStatusInfo(t.id) as any;
+    return info.isCompleted;
+  }).length;
+
   const renderTask = (task: Task, index: number) => {
     const { isCompleted, timeLeft, subLabel, isInReview } = getTaskStatusInfo(task.id) as any;
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
     const isManualInputActive = showManualInput === task.id;
+    const isOneTime = ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin'].includes(task.id);
+    const isHighlighted = highlightedTaskId === task.id && !isCompleted;
 
     return (
-      <div className="flex flex-col mb-2">
+      <div id={`task-${task.id}`} key={task.id} className="flex flex-col">
         <motion.div 
-          key={task.id} 
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.05 }}
+          transition={{ delay: Math.min(index * 0.03, 0.25) }}
           className={cn(
-            "flex items-center justify-between p-3 rounded-2xl border transition-all",
-            isCompleted ? "bg-slate-50 border-slate-100" : "bg-white border-slate-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-[0_4px_15px_rgb(0,0,0,0.04)]"
+            "flex items-center justify-between p-3.5 rounded-[22px] border transition-all",
+            isCompleted 
+              ? "bg-white/70 border-slate-100" 
+              : isHighlighted
+                ? "bg-emerald-50/70 border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_10px_28px_-4px_rgba(16,185,129,0.22)]"
+                : "bg-white border-slate-200/80 shadow-[0_8px_24px_-6px_rgba(15,23,42,0.04)] hover:border-slate-300"
           )}
         >
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className={cn("flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center", 
+          <div className="flex items-center gap-3.5 overflow-hidden pr-2">
+            <div className={cn("flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center border transition-colors", 
               isCompleted 
-                ? "bg-slate-100 text-slate-400" 
+                ? "bg-slate-50 border-slate-100 text-slate-400" 
                 : task.provider === 'monetag'
-                  ? "bg-indigo-50 text-indigo-500"
-                  : "bg-blue-50 text-blue-500"
+                  ? "bg-indigo-50/80 border-indigo-100/80 text-indigo-600"
+                  : "bg-emerald-50/80 border-emerald-100/80 text-emerald-600"
             )}>
               {React.cloneElement(task.icon as React.ReactElement, { className: "w-4 h-4" })}
             </div>
             <div className="flex flex-col min-w-0 justify-center">
-              <p className={cn("text-[13px] font-bold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>{task.title}</p>
-              <p className={cn("text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5", isCompleted ? "text-slate-400" : "text-emerald-600")}>
-                <span><USDT amount={'+' + reward} size="text-[9px]" iconSize="w-3 h-3" /> / 24H</span>
-                <span className="text-slate-300">•</span>
-                <span className="text-slate-400 normal-case tracking-normal">{subLabel}</span>
+              <p className={cn("text-[13px] font-extrabold truncate tracking-tight", isCompleted ? "text-slate-400" : "text-slate-900")}>
+                {task.title}
               </p>
+              <div className="flex items-center gap-1.5 mt-0.5 text-[10px] font-bold">
+                <span className={cn("font-mono tabular-nums flex items-center", isCompleted ? "text-slate-400" : "text-emerald-600 font-black")}>
+                  <USDT amount={'+' + reward} size="text-[10px]" iconSize="w-3 h-3" />
+                  <span className="ml-0.5">/24H</span>
+                </span>
+                <span className="text-slate-300">·</span>
+                <span className="text-slate-400 truncate">{subLabel}</span>
+              </div>
             </div>
           </div>
           
@@ -900,20 +958,16 @@ export function TasksTab() {
                 key="done"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-end"
+                className="flex flex-col items-end flex-shrink-0"
               >
-                <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50/80 px-2.5 py-1 rounded-full font-black text-[9px] border border-emerald-100/60 shadow-[0_1px_5px_rgba(16,185,129,0.05)]">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-                  <span>COMPLETED</span>
+                <div className="flex items-center gap-1 text-emerald-600 font-black text-[10px] uppercase tracking-wider">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Done</span>
                 </div>
-                {!['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin'].includes(task.id) && timeLeft > 0 && (
-                  <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-slate-500"></span>
-                    </span>
-                    <span>RESETS IN {formatCountdown(timeLeft)}</span>
-                  </div>
+                {!isOneTime && timeLeft > 0 && (
+                  <span className="text-[9px] font-mono tabular-nums font-bold text-slate-400 mt-0.5">
+                    {formatCountdown(timeLeft)}
+                  </span>
                 )}
               </motion.div>
             ) : isInReview ? (
@@ -921,16 +975,16 @@ export function TasksTab() {
                 key="review"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-end"
+                className="flex flex-col items-end flex-shrink-0"
               >
-                <div className="flex items-center gap-1 text-amber-600 bg-amber-50/80 px-2.5 py-1 rounded-full font-black text-[9px] border border-amber-100/60 shadow-[0_1px_5px_rgba(245,158,11,0.05)]">
+                <div className="flex items-center gap-1 text-amber-600 font-black text-[10px] uppercase tracking-wider">
                   <MonitorPlay className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                  <span>IN REVIEW</span>
+                  <span>Review</span>
                 </div>
                 {timeLeft > 0 && (
-                  <div className="flex items-center gap-1.5 bg-slate-100/80 px-2 py-0.5 rounded-full text-[8px] font-mono font-extrabold text-slate-500 border border-slate-200/50 mt-1">
-                    <span>{formatCountdown(timeLeft)}</span>
-                  </div>
+                  <span className="text-[9px] font-mono tabular-nums font-bold text-slate-400 mt-0.5">
+                    {formatCountdown(timeLeft)}
+                  </span>
                 )}
               </motion.div>
             ) : (
@@ -940,19 +994,19 @@ export function TasksTab() {
                 onClick={() => handleTaskClick(task)}
                 disabled={isLoading}
                 className={cn(
-                  "flex-shrink-0 px-3 py-1.5 text-[10px] font-black rounded-lg whitespace-nowrap transition-colors",
+                  "flex-shrink-0 h-9 px-4 text-[10px] font-black uppercase tracking-wider rounded-xl whitespace-nowrap transition-all active:scale-95",
                   isLoading 
                     ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
                     : task.id === 'sys_add_home' && homeScreenStatus === 'added'
-                      ? "bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.45)] hover:bg-emerald-600 animate-pulse font-black"
+                      ? "bg-emerald-500 text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)] hover:bg-emerald-600"
                       : "bg-slate-900 text-white shadow-sm hover:bg-slate-800"
                 )}
               >
                 {isLoading 
                   ? '...' 
                   : task.id === 'sys_add_home' 
-                    ? (homeScreenStatus === 'added' ? 'CLAIM' : 'START') 
-                    : (manualTaskStatuses[task.id]?.status === 'rejected' || manualTaskStatuses[task.id]?.status === 'expired' ? 'RETRY' : 'START')}
+                    ? (homeScreenStatus === 'added' ? 'Claim' : 'Start') 
+                    : (manualTaskStatuses[task.id]?.status === 'rejected' || manualTaskStatuses[task.id]?.status === 'expired' ? 'Retry' : 'Start')}
               </motion.button>
             )}
           </AnimatePresence>
@@ -963,21 +1017,21 @@ export function TasksTab() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="mt-2 bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col gap-2"
+            className="mt-2 bg-white border border-slate-200/90 rounded-[20px] p-3.5 shadow-sm flex flex-col gap-2.5"
           >
-            <p className="text-[10px] font-bold text-slate-600">Enter your {task.title} username:</p>
+            <p className="text-[11px] font-bold text-slate-600">Enter your <span className="text-slate-900 font-extrabold">{task.title}</span> username to verify completion:</p>
             <div className="flex gap-2">
               <input 
                 type="text" 
                 value={externalUsername}
                 onChange={(e) => setExternalUsername(e.target.value)}
                 placeholder="Username"
-                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-slate-400"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-400 transition-colors"
               />
               <button 
                 onClick={() => submitManualTask(task.id)}
                 disabled={isLoading || !externalUsername.trim()}
-                className="bg-slate-900 text-white text-[10px] font-black px-4 py-1.5 rounded-lg disabled:opacity-50"
+                className="bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-black uppercase tracking-wider px-4 py-2 rounded-xl disabled:opacity-50 transition-colors"
               >
                 {isLoading ? '...' : 'Verify'}
               </button>
@@ -989,40 +1043,84 @@ export function TasksTab() {
   };
 
   return (
-    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F5F7F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
+    <div className="h-full overflow-y-auto overflow-x-hidden bg-[#F4F6F9] overscroll-behavior-y-contain scroll-smooth [-webkit-overflow-scrolling:touch]">
       <Header title="Earn More" />
       
-      <div className="p-4 pb-24">
+      <div className="px-4 pt-3 pb-28 space-y-5 max-w-md mx-auto">
+        {/* Executive Task Boost Hero Card */}
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6 bg-white p-5 rounded-[24px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col relative overflow-hidden"
+          className="relative rounded-[28px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6 text-white shadow-[0_20px_50px_-12px_rgba(15,23,42,0.35)] overflow-hidden border border-white/10"
         >
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-[100px] -z-0 opacity-50"></div>
+          <div className="absolute -top-20 -right-20 w-52 h-52 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute -bottom-20 -left-20 w-52 h-52 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
           <div className="relative z-10">
-            <span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase tracking-widest rounded mb-2">Boost Mining</span>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tighter mb-1">Complete Tasks</h2>
-            <p className="text-xs text-slate-500 font-medium">Increase your daily mining rate permanently by completing simple tasks.</p>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/25 flex items-center justify-center text-emerald-400">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">Mining Speed Booster</span>
+              </div>
+              <span className="text-[11px] font-mono tabular-nums font-bold text-slate-400">
+                {completedCount} / {allTasksCount} Done
+              </span>
+            </div>
+
+            <h2 className="text-xl font-black tracking-tight text-white mb-1">Complete & Upgrade</h2>
+            <p className="text-[11px] text-slate-400 font-medium leading-relaxed mb-5">
+              Every completed mission boosts your cloud mining speed for 24 hours or permanently.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-white/10">
+              <div className="bg-white/[0.04] border border-white/[0.07] rounded-2xl p-3">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Speed</p>
+                <div className="text-sm font-black text-emerald-400 font-mono tabular-nums flex items-center gap-1">
+                  <USDT amount={`+${formatUSDT(user?.miningRate || 100)}`} size="text-sm" iconSize="w-4 h-4" />
+                  <span className="text-[10px] text-slate-400 font-sans font-bold">/24h</span>
+                </div>
+              </div>
+              <div className="bg-white/[0.04] border border-white/[0.07] rounded-2xl p-3">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Missions Done</p>
+                <div className="text-sm font-black text-white font-mono tabular-nums">
+                  {completedCount} <span className="text-[10px] text-slate-400 font-sans font-bold">Completed</span>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
 
         <div className="space-y-6">
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">System Bonuses</h3>
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.08 }}>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-4 rounded-full bg-emerald-500"></div>
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Partner & Ecosystem Tasks</h3>
+              </div>
+              <span className="text-[10px] font-mono tabular-nums font-bold text-slate-400">
+                {activeSysTasks.length} Tasks
+              </span>
             </div>
-            {activeSysTasks.map((t, i) => renderTask(t, i))}
+            <div className="space-y-2.5">
+              {activeSysTasks.map((t, i) => renderTask(t, i))}
+            </div>
           </motion.section>
 
-
-
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-              <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Monetag Offers</h3>
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.16 }}>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-4 rounded-full bg-indigo-500"></div>
+                <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Daily Ad Boosters</h3>
+              </div>
+              <span className="text-[10px] font-mono tabular-nums font-bold text-slate-400">
+                24h Reset
+              </span>
             </div>
-            {monetagTasks.map((t, i) => renderTask(t, i))}
+            <div className="space-y-2.5">
+              {monetagTasks.map((t, i) => renderTask(t, i))}
+            </div>
           </motion.section>
         </div>
       </div>
@@ -1034,12 +1132,12 @@ export function TasksTab() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             className={cn(
-              "fixed bottom-20 left-4 right-4 z-50 p-4 rounded-xl shadow-lg border flex items-center gap-3 backdrop-blur-md",
+              "fixed bottom-20 left-4 right-4 z-50 p-4 rounded-2xl shadow-lg border flex items-center gap-3 backdrop-blur-md",
               toast.type === 'success' 
                 ? "bg-emerald-600/95 text-white border-emerald-500" 
                 : toast.type === 'error'
                   ? "bg-rose-600/95 text-white border-rose-500"
-                  : "bg-slate-900/95 text-white border-slate-850"
+                  : "bg-slate-900/95 text-white border-slate-800"
             )}
           >
             {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-white animate-bounce" />}

@@ -11,7 +11,7 @@ interface USDTProps {
 export function USDT({ amount, className, size = 'text-base', iconSize = 'w-5 h-5' }: USDTProps) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 font-black max-w-full min-w-0", size, className)}>
-      <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT Icon" className={cn("object-contain shrink-0 drop-shadow-sm", iconSize)} />
+      <img src="https://i.ibb.co/1GRktfhQ/Tether-USDT.png" alt="USDT" referrerPolicy="no-referrer" className={cn("object-contain shrink-0", iconSize)} />
       {amount !== undefined && <span className="whitespace-nowrap">{amount}</span>}
     </span>
   );
