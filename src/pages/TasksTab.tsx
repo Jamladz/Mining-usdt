@@ -256,7 +256,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
     if (!record) return { isCompleted: false, timeLeft: 0 };
     
     // For one-time system tasks, it is completed once in history and never resets
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin' || taskId === 'sys_join_ngm') {
       return { isCompleted: true, timeLeft: 999999999 };
     }
     
@@ -338,7 +338,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
       return { isCompleted: false, subLabel: 'Manual Verification' };
     }
 
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin' || taskId === 'sys_join_ngm') {
       const status = getTaskStatus(taskId);
       return {
         isCompleted: status.isCompleted,
@@ -427,7 +427,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
       setLoadingTask(task.id);
       task.action?.();
       
-      // Complete after a short delay so the user has time to open the link
+      // Complete after 10 seconds so the user has time to complete the task
       setTimeout(async () => {
         try {
           await triggerBackendTaskCompletion('sys_join_riftycoin', 'system', 5000);
@@ -437,7 +437,25 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
         } finally {
           setLoadingTask(null);
         }
-      }, 3000);
+      }, 10000);
+      return;
+    }
+
+    if (task.id === 'sys_join_ngm') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after 10 seconds so the user has time to complete the task
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_ngm', 'system', 5000);
+          showToast('🎉 Joined NGM Cloud Mining successfully! Boosted rate by +0.50 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 10000);
       return;
     }
 
@@ -693,6 +711,22 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
 
   const sysTasks: Task[] = [
     { 
+      id: 'sys_join_ngm', 
+      title: 'Join NGM Cloud Mining', 
+      provider: 'system', 
+      icon: <Gift className="w-5 h-5" />,
+      rewardValue: '0.5',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/NGMCloudeminingbot?start=ref_NHQ9KEHR';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_join_riftycoin', 
       title: 'Join RiftyCoin Bot', 
       provider: 'system', 
@@ -909,7 +943,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
     const isManualInputActive = showManualInput === task.id;
-    const isOneTime = ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin'].includes(task.id);
+    const isOneTime = ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm'].includes(task.id);
     const isHighlighted = highlightedTaskId === task.id && !isCompleted;
 
     return (

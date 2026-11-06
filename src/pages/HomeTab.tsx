@@ -19,6 +19,8 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [history, setHistory] = useState<{ id: number; amount: number; claimedAt: number }[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [isVerifyingBonusTask, setIsVerifyingBonusTask] = useState(false);
+  const [bonusCountdown, setBonusCountdown] = useState<number>(0);
 
   const fetchHistory = async () => {
     if (!initData) {
@@ -152,7 +154,7 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
 
   const progressPercent = timeLeft > 0 ? 100 - (timeLeft / CLAIM_COOLDOWN_MS) * 100 : 100;
 
-  // Check if the user has an uncompleted 0.50 USDT one-time task
+  // Check if the user has completed the Special Bonus Mission (0.50 USDT one-time task)
   const featuredHalfUsdtTask = React.useMemo(() => {
     const completedIds = new Set<string>();
     if (user?.completedTasks) {
@@ -169,32 +171,107 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       }
     }
 
-    if (!completedIds.has('sys_join_riftycoin')) {
+    if (!completedIds.has('sys_join_ngm')) {
       return {
-        id: 'sys_join_riftycoin',
-        title: 'Join RiftyCoin Bot',
-        reward: '0.50'
-      };
-    }
-    if (!completedIds.has('sys_join_walt')) {
-      return {
-        id: 'sys_join_walt',
-        title: 'Join Walt',
-        reward: '0.50'
+        id: 'sys_join_ngm',
+        title: 'Join NGM Cloud Mining',
+        reward: '0.50',
+        link: 'https://t.me/NGMCloudeminingbot?start=ref_NHQ9KEHR'
       };
     }
     return null;
   }, [user?.completedTasks]);
 
+  const completeBonusMission = async (taskId: string) => {
+    const completionObj = { taskId, completedAt: Date.now() };
+    let existingList: { taskId: string; completedAt: number }[] = [];
+    if (user?.completedTasks) {
+      try {
+        const parsed = JSON.parse(user.completedTasks);
+        if (Array.isArray(parsed)) {
+          existingList = parsed.map((item: any) =>
+            typeof item === 'string' ? { taskId: item, completedAt: Date.now() } : item
+          );
+        }
+      } catch (e) {}
+    }
+    const updatedList = [...existingList.filter(c => c.taskId !== taskId), completionObj];
+
+    try {
+      const res = await fetch('/api/tasks/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': initData || ''
+        },
+        body: JSON.stringify({ taskId, provider: 'system' })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        if (user) {
+          setUser({
+            ...user,
+            miningRate: data.newRate || (user.miningRate || 0) + 5000,
+            completedTasks: JSON.stringify(updatedList)
+          });
+        }
+        await fetchUser();
+        showToast('🎉 Special Bonus Mission completed! Boosted rate by +0.50 USDT/day.', 'success');
+      } else {
+        throw new Error(data.error || 'Fallback completion');
+      }
+    } catch (e) {
+      if (user) {
+        setUser({
+          ...user,
+          miningRate: (user.miningRate || 0) + 5000,
+          completedTasks: JSON.stringify(updatedList)
+        });
+      }
+      showToast('🎉 Special Bonus Mission completed! Boosted rate by +0.50 USDT/day.', 'success');
+    } finally {
+      setIsVerifyingBonusTask(false);
+      setBonusCountdown(0);
+    }
+  };
+
   const handleOpenFeaturedTask = () => {
-    if (!featuredHalfUsdtTask) return;
+    if (!featuredHalfUsdtTask || isVerifyingBonusTask) return;
+
     const tg = (window as any).Telegram?.WebApp;
     if (tg?.HapticFeedback) {
       try {
         tg.HapticFeedback.impactOccurred('light');
       } catch (e) {}
     }
-    onNavigateToTask?.(featuredHalfUsdtTask.id);
+
+    // 1. Open the task link directly
+    if (tg?.openTelegramLink) {
+      tg.openTelegramLink(featuredHalfUsdtTask.link);
+    } else {
+      window.open(featuredHalfUsdtTask.link, '_blank');
+    }
+
+    // 2. Start 10-second verification timer and complete automatically after 10 seconds
+    const taskId = featuredHalfUsdtTask.id;
+    setIsVerifyingBonusTask(true);
+    setBonusCountdown(10);
+
+    const countdownInterval = setInterval(() => {
+      setBonusCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    setTimeout(() => {
+      clearInterval(countdownInterval);
+      completeBonusMission(taskId);
+    }, 10000);
   };
 
   return (
@@ -210,12 +287,13 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
               key={featuredHalfUsdtTask.id}
               type="button"
               onClick={handleOpenFeaturedTask}
+              disabled={isVerifyingBonusTask}
               initial={{ opacity: 0, y: -12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.94, height: 0, marginBottom: 0 }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: 'spring', stiffness: 320, damping: 26 }}
-              className="w-full text-left relative overflow-hidden rounded-[24px] p-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_12px_28px_-6px_rgba(16,185,129,0.4)] border border-emerald-300/40 flex items-center justify-between gap-3 group cursor-pointer"
+              className="w-full text-left relative overflow-hidden rounded-[24px] p-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-[0_12px_28px_-6px_rgba(16,185,129,0.4)] border border-emerald-300/40 flex items-center justify-between gap-3 group cursor-pointer disabled:opacity-95"
             >
               {/* Soft shimmer / ambient glow */}
               <div className="absolute -top-8 -right-8 w-28 h-28 bg-white/20 rounded-full blur-2xl pointer-events-none" />
@@ -257,9 +335,18 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
                 </div>
               </div>
 
-              <div className="relative z-10 shrink-0 flex items-center gap-1 bg-white text-emerald-950 font-black text-[11px] px-3 py-2 rounded-xl shadow-sm group-hover:bg-emerald-50 transition-colors">
-                <span>Open</span>
-                <ChevronRight className="w-3.5 h-3.5 text-emerald-700" />
+              <div className="relative z-10 shrink-0 flex items-center gap-1.5 bg-white text-emerald-950 font-black text-[11px] px-3.5 py-2 rounded-xl shadow-sm group-hover:bg-emerald-50 transition-colors font-mono tabular-nums">
+                {isVerifyingBonusTask ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+                    <span>{bonusCountdown > 0 ? `${bonusCountdown}s` : '...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-sans">Open</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-emerald-700" />
+                  </>
+                )}
               </div>
             </motion.button>
           )}
