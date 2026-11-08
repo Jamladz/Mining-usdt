@@ -256,7 +256,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
     if (!record) return { isCompleted: false, timeLeft: 0 };
     
     // For one-time system tasks, it is completed once in history and never resets
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin' || taskId === 'sys_join_ngm') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin' || taskId === 'sys_join_ngm' || taskId === 'sys_join_grmfdex') {
       return { isCompleted: true, timeLeft: 999999999 };
     }
     
@@ -338,7 +338,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
       return { isCompleted: false, subLabel: 'Manual Verification' };
     }
 
-    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin' || taskId === 'sys_join_ngm') {
+    if (taskId === 'sys_add_home' || taskId === 'sys_join_hot_labs' || taskId === 'sys_join_teqoin' || taskId === 'sys_join_lamotrade' || taskId === 'sys_join_midaso' || taskId === 'sys_join_wallet' || taskId === 'sys_join_cryptorcs' || taskId === 'sys_join_pilotka' || taskId === 'sys_join_cryptomint' || taskId === 'sys_join_giftsvault' || taskId === 'sys_join_walt' || taskId === 'sys_join_riftycoin' || taskId === 'sys_join_ngm' || taskId === 'sys_join_grmfdex') {
       const status = getTaskStatus(taskId);
       return {
         isCompleted: status.isCompleted,
@@ -456,6 +456,24 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
           setLoadingTask(null);
         }
       }, 10000);
+      return;
+    }
+
+    if (task.id === 'sys_join_grmfdex') {
+      setLoadingTask(task.id);
+      task.action?.();
+      
+      // Complete after a short delay so the user has time to open the link
+      setTimeout(async () => {
+        try {
+          await triggerBackendTaskCompletion('sys_join_grmfdex', 'system', 9000);
+          showToast('🎉 Joined Grmfdex Bot successfully! Boosted rate by +0.90 USDT/day.', 'success');
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoadingTask(null);
+        }
+      }, 3000);
       return;
     }
 
@@ -711,6 +729,22 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
 
   const sysTasks: Task[] = [
     { 
+      id: 'sys_join_grmfdex', 
+      title: 'Join Grmfdex Bot', 
+      provider: 'system', 
+      icon: <Play className="w-5 h-5" />,
+      rewardValue: '0.9',
+      action: () => {
+        const tg = (window as any).Telegram?.WebApp;
+        const link = 'https://t.me/Grmfdex_bot?startapp=ref_tg_1368899842';
+        if (tg?.openTelegramLink) {
+          tg.openTelegramLink(link);
+        } else {
+          window.open(link, '_blank');
+        }
+      }
+    },
+    { 
       id: 'sys_join_ngm', 
       title: 'Join NGM Cloud Mining', 
       provider: 'system', 
@@ -943,7 +977,7 @@ export function TasksTab({ highlightedTaskId, onClearHighlight }: TasksTabProps 
     const isLoading = loadingTask === task.id;
     const reward = task.rewardValue || '0.01';
     const isManualInputActive = showManualInput === task.id;
-    const isOneTime = ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm'].includes(task.id);
+    const isOneTime = ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_baat', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex'].includes(task.id);
     const isHighlighted = highlightedTaskId === task.id && !isCompleted;
 
     return (
