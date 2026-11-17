@@ -171,12 +171,12 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       }
     }
 
-    if (!completedIds.has('sys_join_ngm')) {
+    if (!completedIds.has('sys_join_apexpool')) {
       return {
-        id: 'sys_join_ngm',
-        title: 'Join NGM Cloud Mining',
+        id: 'sys_join_apexpool',
+        title: 'Join ApexPool Bot',
         reward: '0.50',
-        link: 'https://t.me/NGMCloudeminingbot?start=ref_NHQ9KEHR'
+        link: 'https://t.me/ApexPoolbot/apex?startapp=1368899842'
       };
     }
     return null;
