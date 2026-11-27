@@ -16,6 +16,8 @@ export const users = sqliteTable('users', {
   claimedWelcome: integer('claimed_welcome').default(0),
   lastClaimAt: integer('last_claim_at'),
   hasNft: integer('has_nft').default(0),
+  miningVerified: integer('mining_verified').default(0),
+  verifiedWallet: text('verified_wallet'),
   createdAt: integer('created_at').default(Date.now()),
   updatedAt: integer('updated_at').default(Date.now()),
 });

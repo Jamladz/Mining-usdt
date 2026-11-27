@@ -26,6 +26,8 @@ export async function syncUserToFirebase(user: any) {
       referralEarnings: user.referralEarnings || 0,
       claimedWelcome: user.claimedWelcome || 0,
       hasNft: user.hasNft || 0,
+      miningVerified: user.miningVerified || 0,
+      verifiedWallet: user.verifiedWallet || '',
       claimedMilestones: typeof user.claimedMilestones === 'string' ? user.claimedMilestones : JSON.stringify(user.claimedMilestones || []),
       lastActive: serverTimestamp()
     }, { merge: true });

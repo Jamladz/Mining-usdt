@@ -18,6 +18,8 @@ export interface User {
   lastClaimAt?: number;
   claimedWelcome?: number;
   hasNft?: number;
+  miningVerified?: number;
+  verifiedWallet?: string | null;
   createdAt: number;
   completedTasks?: string;
 }

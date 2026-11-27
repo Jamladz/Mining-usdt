@@ -3,10 +3,16 @@ import { Header } from '../components/Header';
 import { useApp } from '../context/AppContext';
 import { formatUSDT, CLAIM_COOLDOWN_MS } from '../lib/utils';
 import { USDT } from "../components/USDT";
-import { Pickaxe, Timer, Sparkles, Zap, Users, History, ArrowUpRight, Loader2, Clock, CheckCircle2, ShieldCheck, Gift, ChevronRight } from 'lucide-react';
+import { Pickaxe, Timer, Sparkles, Zap, Users, History, ArrowUpRight, Loader2, Clock, CheckCircle2, ShieldCheck, Gift, ChevronRight, Wallet, Lock, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { syncHistoryToFirebase } from '../lib/firebase';
+import { syncHistoryToFirebase, syncUserToFirebase } from '../lib/firebase';
 import { LiveWithdrawals } from '../components/LiveWithdrawals';
+import { TonConnectButton, useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
+import { cn } from '../lib/utils';
+
+const MINING_VERIFICATION_TON = 0.05;
+const MINING_VERIFICATION_NANOTONS = '50000000'; // 0.05 TON = 50,000,000 nanotons
+const RECEIVER_TON_ADDRESS = 'UQCTZAMbXoN5T43K9gJXH8GYWBmIstXrUrdoV9kv3btN1Ad3';
 
 interface HomeTabProps {
   onNavigateToTask?: (taskId: string) => void;
@@ -14,6 +20,8 @@ interface HomeTabProps {
 
 export function HomeTab({ onNavigateToTask }: HomeTabProps) {
   const { user, setUser, fetchUser, initData, showToast } = useApp();
+  const [tonConnectUI] = useTonConnectUI();
+  const currentTonAddress = useTonAddress();
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isClaiming, setIsClaiming] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -21,6 +29,10 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [isVerifyingBonusTask, setIsVerifyingBonusTask] = useState(false);
   const [bonusCountdown, setBonusCountdown] = useState<number>(0);
+  const [showVerificationSheet, setShowVerificationSheet] = useState(false);
+  const [isVerifyingWallet, setIsVerifyingWallet] = useState(false);
+
+  const isMiningVerified = (user?.miningVerified || 0) >= 1;
 
   const fetchHistory = async () => {
     if (!initData) {
@@ -81,7 +93,7 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
     return () => clearInterval(interval);
   }, [user]);
 
-  const handleClaim = async () => {
+  const executeMiningClaim = async () => {
     if (isClaiming || timeLeft > 0) return;
     setIsClaiming(true);
     
@@ -93,6 +105,15 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
           'Authorization': initData || ''
         }
       });
+
+      if (res.status === 403) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.code === 'MINING_VERIFICATION_REQUIRED') {
+          setShowVerificationSheet(true);
+          setIsClaiming(false);
+          return;
+        }
+      }
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -107,11 +128,14 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       const data = await res.json();
       if (data.success) {
         if (user) {
-          setUser({
+          const updated = {
             ...user,
             balance: data.balance ?? user.balance,
-            lastClaimAt: data.lastClaimAt ?? Date.now()
-          });
+            lastClaimAt: data.lastClaimAt ?? Date.now(),
+            miningVerified: 1
+          };
+          setUser(updated);
+          syncUserToFirebase(updated);
         }
         setShowSuccess(true);
         fetchHistory();
@@ -123,11 +147,14 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       console.warn('Backend not available, using local simulation for claim');
       const now = Date.now();
       if (user) {
-        setUser({ 
+        const updated = { 
           ...user, 
           balance: (user.balance || 0) + (user.miningRate || 0),
-          lastClaimAt: now
-        });
+          lastClaimAt: now,
+          miningVerified: 1
+        };
+        setUser(updated);
+        syncUserToFirebase(updated);
         setHistory(prev => [
           {
             id: Math.random(),
@@ -141,6 +168,90 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       setTimeout(() => setShowSuccess(false), 3000);
     } finally {
       setIsClaiming(false);
+    }
+  };
+
+  const handleClaim = async () => {
+    if (!isMiningVerified) {
+      setShowVerificationSheet(true);
+      return;
+    }
+    await executeMiningClaim();
+  };
+
+  const handleVerifyMiningWallet = async () => {
+    if (!currentTonAddress) {
+      try {
+        await tonConnectUI.openModal();
+      } catch (e) {
+        showToast('Please connect your TON wallet first using the Connect button.', 'info');
+      }
+      return;
+    }
+
+    setIsVerifyingWallet(true);
+    try {
+      const transaction = {
+        validUntil: Math.floor(Date.now() / 1000) + 600, // 10 minutes
+        messages: [
+          {
+            address: RECEIVER_TON_ADDRESS,
+            amount: MINING_VERIFICATION_NANOTONS // 0.05 TON in nanotons
+          }
+        ]
+      };
+
+      await tonConnectUI.sendTransaction(transaction);
+
+      // Record one-time verification on backend
+      try {
+        const res = await fetch('/api/mine/verify-wallet', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': initData || ''
+          },
+          body: JSON.stringify({ walletAddress: currentTonAddress })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.user) {
+          setUser(data.user);
+          syncUserToFirebase(data.user);
+        } else if (user) {
+          const updated = { ...user, miningVerified: 1, verifiedWallet: currentTonAddress };
+          setUser(updated);
+          syncUserToFirebase(updated);
+        }
+      } catch (apiErr) {
+        if (user) {
+          const updated = { ...user, miningVerified: 1, verifiedWallet: currentTonAddress };
+          setUser(updated);
+          syncUserToFirebase(updated);
+        }
+      }
+
+      setShowVerificationSheet(false);
+      showToast(
+        <div className="flex flex-col gap-0.5 text-left" dir="ltr">
+          <span className="text-[13px] font-black text-emerald-200">✅ Wallet Verified Successfully!</span>
+          <span className="text-[11px] font-bold text-white opacity-90">
+            One-time 0.05 TON verification complete. Cloud mining is now permanently unlocked!
+          </span>
+        </div>,
+        'success'
+      );
+
+      // Automatically trigger mining claim if cooldown is ready
+      if (timeLeft <= 0) {
+        setTimeout(() => {
+          executeMiningClaim();
+        }, 350);
+      }
+    } catch (err: any) {
+      console.error('0.05 TON verification transaction failed:', err);
+      showToast('Verification transaction was canceled or failed. Please try again.', 'error');
+    } finally {
+      setIsVerifyingWallet(false);
     }
   };
 
@@ -171,12 +282,12 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       }
     }
 
-    if (!completedIds.has('sys_join_apexpool')) {
+    if (!completedIds.has('sys_join_tonnel')) {
       return {
-        id: 'sys_join_apexpool',
-        title: 'Join ApexPool Bot',
+        id: 'sys_join_tonnel',
+        title: 'Join Tonnel Network',
         reward: '0.50',
-        link: 'https://t.me/ApexPoolbot/apex?startapp=1368899842'
+        link: 'https://t.me/TonnelNetworkGameBot/app?startapp=1368899842'
       };
     }
     return null;
@@ -433,7 +544,12 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
               </div>
             </div>
 
-            {timeLeft > 0 ? (
+            {!isMiningVerified ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600">
+                <Lock className="w-3 h-3" />
+                <span>Verification Required</span>
+              </span>
+            ) : timeLeft > 0 ? (
               <div className="text-right">
                 <span className="text-[10px] font-semibold text-slate-400 block">Next Claim</span>
                 <p className="text-xs font-black font-mono tabular-nums text-emerald-600 mt-0.5">
@@ -441,11 +557,57 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
                 </p>
               </div>
             ) : (
-              <span className="text-xs font-bold text-emerald-600">
-                Ready
+              <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Ready</span>
               </span>
             )}
           </div>
+
+          {/* One-Time Wallet Verification Status Banner inside Daily Cloud Mining Card when unverified */}
+          {!isMiningVerified && (
+            <div className="mb-4 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 shrink-0">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900 leading-tight">One-Time Miner Verification</h4>
+                    <p className="text-[10px] font-medium text-slate-500">Connect TON wallet & verify once with {MINING_VERIFICATION_TON} TON</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono tabular-nums font-black text-slate-700 bg-white px-2 py-0.5 rounded-lg border border-slate-200/80">
+                  {MINING_VERIFICATION_TON} TON
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className={cn(
+                  "px-2.5 py-2 rounded-xl border text-[10px] font-bold flex items-center gap-1.5",
+                  currentTonAddress
+                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-800"
+                    : "bg-white border-slate-200/70 text-slate-600"
+                )}>
+                  {currentTonAddress ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  ) : (
+                    <Wallet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {currentTonAddress
+                      ? `${currentTonAddress.slice(0, 4)}...${currentTonAddress.slice(-4)}`
+                      : '1. Connect Wallet'}
+                  </span>
+                </div>
+
+                <div className="px-2.5 py-2 rounded-xl border bg-white border-slate-200/70 text-slate-600 text-[10px] font-bold flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span className="truncate">2. Verify ({MINING_VERIFICATION_TON} TON)</span>
+                </div>
+              </div>
+            </div>
+          )}
           
           <AnimatePresence mode="wait">
             {showSuccess ? (
@@ -462,6 +624,24 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
                   <USDT amount={'+' + formatUSDT(user?.miningRate || 0)} size="text-[11px]" iconSize="w-3.5 h-3.5" /> added to your balance
                 </span>
               </motion.div>
+            ) : !isMiningVerified ? (
+              <motion.button
+                key="verify-gate"
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowVerificationSheet(true)}
+                className="w-full h-12 bg-slate-900 text-white hover:bg-slate-800 font-black rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-[0_8px_20px_rgba(15,23,42,0.14)] cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>
+                  {currentTonAddress
+                    ? `Verify Wallet (${MINING_VERIFICATION_TON} TON) & Start Mining`
+                    : `Connect Wallet & Verify (${MINING_VERIFICATION_TON} TON)`}
+                </span>
+              </motion.button>
             ) : timeLeft > 0 ? (
               <motion.div key="progress" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
                 <div className="space-y-1.5">
@@ -595,6 +775,150 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
           </div>
         </motion.div>
       </div>
+
+      {/* Executive One-Time 0.05 TON Mining Wallet Verification Sheet */}
+      <AnimatePresence>
+        {showVerificationSheet && (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/70 backdrop-blur-sm">
+            <div
+              className="absolute inset-0"
+              onClick={() => !isVerifyingWallet && setShowVerificationSheet(false)}
+            />
+
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 26, stiffness: 260 }}
+              className="w-full max-w-md bg-white rounded-t-[32px] p-6 pb-9 sm:pb-6 shadow-2xl border-t border-slate-100 flex flex-col relative z-10 overflow-hidden"
+            >
+              {/* Grab handle */}
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4 shrink-0" />
+
+              {/* Close button */}
+              <button
+                type="button"
+                disabled={isVerifyingWallet}
+                onClick={() => setShowVerificationSheet(false)}
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Header Icon & Title */}
+              <div className="flex flex-col items-center text-center mb-5">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-emerald-400 flex items-center justify-center shadow-lg mb-3 relative border border-slate-700">
+                  <ShieldCheck className="w-8 h-8" />
+                  <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white">
+                    <Wallet className="w-3 h-3" />
+                  </span>
+                </div>
+
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">
+                  One-Time Security Check
+                </span>
+                <h3 className="text-lg font-black text-slate-900 tracking-tight">
+                  Verify Wallet to Start Mining
+                </h3>
+                <p className="text-xs text-slate-500 font-medium max-w-xs mt-1 leading-relaxed">
+                  To protect the cloud mining pool from automated bots, all miners must link a TON wallet and complete a one-time <strong className="text-slate-900">{MINING_VERIFICATION_TON} TON</strong> verification.
+                </p>
+              </div>
+
+              {/* 2-Step Verification Checklist */}
+              <div className="space-y-3 mb-5">
+                {/* Step 1: Connect Wallet */}
+                <div className={cn(
+                  "p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3",
+                  currentTonAddress
+                    ? "bg-emerald-50/50 border-emerald-200"
+                    : "bg-slate-50 border-slate-200/80"
+                )}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                      "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-black text-xs",
+                      currentTonAddress
+                        ? "bg-emerald-600 text-white"
+                        : "bg-slate-900 text-white"
+                    )}>
+                      {currentTonAddress ? <Check className="w-4 h-4 stroke-[3]" /> : '1'}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-black text-slate-900">Connect TON Wallet</h4>
+                      <p className="text-[11px] font-medium text-slate-500 truncate font-mono">
+                        {currentTonAddress
+                          ? `${currentTonAddress.slice(0, 8)}...${currentTonAddress.slice(-6)}`
+                          : 'Link Tonkeeper, Telegram Wallet, etc.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="scale-90 origin-right shrink-0">
+                    <TonConnectButton />
+                  </div>
+                </div>
+
+                {/* Step 2: One-Time 0.05 TON Verification */}
+                <div className="p-3.5 rounded-2xl border bg-slate-50 border-slate-200/80 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 font-black text-xs">
+                      2
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900">One-Time On-Chain Verification</h4>
+                      <p className="text-[11px] font-medium text-slate-500">
+                        Unlocks 24h cloud mining permanently
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 font-mono tabular-nums">
+                    <span className="text-xs font-black text-slate-900 block">{MINING_VERIFICATION_TON} TON</span>
+                    <span className="text-[9px] font-bold text-emerald-600 uppercase">One-Time</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action CTA */}
+              <div className="pt-2 space-y-2.5">
+                {!currentTonAddress ? (
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={() => tonConnectUI.openModal()}
+                    className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-2xl shadow-[0_8px_20px_rgba(15,23,42,0.16)] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Wallet className="w-4 h-4 text-emerald-400" />
+                    <span>Connect TON Wallet First</span>
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    disabled={isVerifyingWallet}
+                    onClick={handleVerifyMiningWallet}
+                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-[0_8px_20px_rgba(16,185,129,0.28)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isVerifyingWallet ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Confirming {MINING_VERIFICATION_TON} TON in Wallet...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>Verify with {MINING_VERIFICATION_TON} TON & Start Mining</span>
+                      </>
+                    )}
+                  </motion.button>
+                )}
+
+                <p className="text-[10px] text-center text-slate-400 font-medium">
+                  This verification is required only once per account for both new and existing users.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -108,6 +108,7 @@ async function getFormattedUser(userId: string) {
     'sys_join_ngm',
     'sys_join_grmfdex',
     'sys_join_apexpool',
+    'sys_join_tonnel',
     'sys_baat'
   ]);
 
@@ -167,6 +168,8 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
             referralEarnings: backup?.referralEarnings ?? 0,
             claimedWelcome: backup?.claimedWelcome ?? 0,
             hasNft: backup?.hasNft ?? 0,
+            miningVerified: backup?.miningVerified ?? 0,
+            verifiedWallet: backup?.verifiedWallet ?? null,
             createdAt: Date.now(),
             updatedAt: Date.now()
           }).returning().get();
@@ -284,7 +287,13 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     }
 
     if (!isNewUserFlag) {
-      await db.update(users).set({ updatedAt: Date.now() }).where(eq(users.id, userId));
+      const backup = req.body.firestore_backup;
+      const updates: any = { updatedAt: Date.now() };
+      if ((backup?.miningVerified || 0) >= 1 && (!user!.miningVerified || user!.miningVerified === 0)) {
+        updates.miningVerified = 1;
+        if (backup?.verifiedWallet) updates.verifiedWallet = backup.verifiedWallet;
+      }
+      await db.update(users).set(updates).where(eq(users.id, userId));
     }
 
     const formattedUser = await getFormattedUser(userId);
@@ -781,11 +790,35 @@ app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
   res.json({ success: true, user: updatedUser });
 });
 
+app.post('/api/mine/verify-wallet', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const { walletAddress } = req.body || {};
+
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  await db.update(users).set({
+    miningVerified: 1,
+    verifiedWallet: walletAddress || user.verifiedWallet || '',
+    updatedAt: Date.now()
+  }).where(eq(users.id, userId));
+
+  const updatedUser = await getFormattedUser(userId);
+  res.json({ success: true, user: updatedUser });
+});
+
 app.post('/api/mine', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   
   if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (!user.miningVerified || user.miningVerified === 0) {
+    return res.status(403).json({
+      error: 'Wallet connection and one-time 0.05 TON verification required to start mining.',
+      code: 'MINING_VERIFICATION_REQUIRED'
+    });
+  }
   
   const now = Date.now();
   if (user.lastClaimAt && now - user.lastClaimAt < CLAIM_COOLDOWN_MS) {
@@ -844,7 +877,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex', 'sys_join_apexpool'].includes(taskId)
+        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex', 'sys_join_apexpool', 'sys_join_tonnel'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -877,7 +910,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_ngm') {
     boostAmount = 5000; // +0.50 USDT
-  } else if (taskId === 'sys_join_apexpool') {
+  } else if (taskId === 'sys_join_apexpool' || taskId === 'sys_join_tonnel') {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_grmfdex') {
     boostAmount = 9000; // +0.90 USDT
