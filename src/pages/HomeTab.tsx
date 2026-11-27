@@ -271,12 +271,12 @@ export function HomeTab({ onNavigateToTask }: HomeTabProps) {
       }
     }
 
-    if (!completedIds.has('sys_join_apexpool')) {
+    if (!completedIds.has('sys_join_tonnel')) {
       return {
-        id: 'sys_join_apexpool',
-        title: 'Join ApexPool Bot',
+        id: 'sys_join_tonnel',
+        title: 'Join Tonnel Network',
         reward: '0.50',
-        link: 'https://t.me/ApexPoolbot/apex?startapp=1368899842'
+        link: 'https://t.me/TonnelNetworkGameBot/app?startapp=1368899842'
       };
     }
     return null;

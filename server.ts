@@ -871,7 +871,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex', 'sys_join_apexpool'].includes(taskId)
+        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex', 'sys_join_apexpool', 'sys_join_tonnel'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -905,6 +905,8 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   } else if (taskId === 'sys_join_ngm') {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_apexpool') {
+    boostAmount = 5000; // +0.50 USDT
+  } else if (taskId === 'sys_join_tonnel') {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_grmfdex') {
     boostAmount = 9000; // +0.90 USDT
