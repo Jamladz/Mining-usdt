@@ -5,13 +5,14 @@ import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals, purchasedNfts, manualTaskSubmissions } from './src/db/schema.js';
 import { eq, and, gt, desc, sql, count } from 'drizzle-orm';
+import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
 const BASE_MINING_RATE = 100; // 0.01 USDT per day base
 const MAX_MINING_RATE = 2000; // 0.20 USDT per day max
@@ -166,7 +167,6 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
             referralEarnings: backup?.referralEarnings ?? 0,
             claimedWelcome: backup?.claimedWelcome ?? 0,
             hasNft: backup?.hasNft ?? 0,
-            miningVerified: backup?.miningVerified ?? 0,
             createdAt: Date.now(),
             updatedAt: Date.now()
           }).returning().get();
@@ -284,12 +284,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     }
 
     if (!isNewUserFlag) {
-      const backupMiningVerified = Number(req.body.firestore_backup?.miningVerified || 0);
-      const nextMiningVerified = Math.max(Number(user?.miningVerified || 0), backupMiningVerified);
-      await db.update(users).set({
-        updatedAt: Date.now(),
-        ...(nextMiningVerified > (user?.miningVerified || 0) ? { miningVerified: nextMiningVerified } : {})
-      }).where(eq(users.id, userId));
+      await db.update(users).set({ updatedAt: Date.now() }).where(eq(users.id, userId));
     }
 
     const formattedUser = await getFormattedUser(userId);
@@ -786,32 +781,11 @@ app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
   res.json({ success: true, user: updatedUser });
 });
 
-app.post('/api/verify-mining', requireUser, async (req: any, res: any) => {
-  const userId = req.user.id.toString();
-  const user = await db.select().from(users).where(eq(users.id, userId)).get();
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  await db.update(users).set({
-    miningVerified: 1,
-    updatedAt: Date.now()
-  }).where(eq(users.id, userId));
-
-  const updatedUser = await getFormattedUser(userId);
-  res.json({ success: true, user: updatedUser });
-});
-
 app.post('/api/mine', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   
   if (!user) return res.status(404).json({ error: 'User not found' });
-
-  if (!user.miningVerified || user.miningVerified < 1) {
-    return res.status(403).json({
-      error: 'Wallet connection and one-time 0.05 TON verification are required to start mining',
-      code: 'VERIFICATION_REQUIRED'
-    });
-  }
   
   const now = Date.now();
   if (user.lastClaimAt && now - user.lastClaimAt < CLAIM_COOLDOWN_MS) {
@@ -870,7 +844,7 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
       and(
         eq(taskCompletions.userId, userId), 
         eq(taskCompletions.taskId, taskId),
-        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex', 'sys_join_apexpool', 'sys_join_tonnel'].includes(taskId)
+        ['sys_add_home', 'sys_join_hot_labs', 'sys_join_teqoin', 'sys_join_lamotrade', 'sys_join_midaso', 'sys_join_wallet', 'sys_join_cryptorcs', 'sys_join_pilotka', 'sys_join_cryptomint', 'sys_join_giftsvault', 'sys_join_walt', 'sys_join_riftycoin', 'sys_join_ngm', 'sys_join_grmfdex', 'sys_join_apexpool'].includes(taskId)
           ? sql`1=1`
           : gt(taskCompletions.completedAt, now - ONE_DAY)
       )
@@ -904,8 +878,6 @@ app.post('/api/tasks/complete', requireUser, async (req: any, res: any) => {
   } else if (taskId === 'sys_join_ngm') {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_apexpool') {
-    boostAmount = 5000; // +0.50 USDT
-  } else if (taskId === 'sys_join_tonnel') {
     boostAmount = 5000; // +0.50 USDT
   } else if (taskId === 'sys_join_grmfdex') {
     boostAmount = 9000; // +0.90 USDT
@@ -1267,7 +1239,6 @@ app.all('/api/*path', (req, res) => {
 // Vite middleware for development
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

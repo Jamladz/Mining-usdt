@@ -49,9 +49,6 @@ const initDb = async () => {
   try {
     await client.execute(`ALTER TABLE users ADD COLUMN has_nft INTEGER DEFAULT 0`);
   } catch (e) {}
-  try {
-    await client.execute(`ALTER TABLE users ADD COLUMN mining_verified INTEGER DEFAULT 0`);
-  } catch (e) {}
 
   try {
     await client.execute(`
