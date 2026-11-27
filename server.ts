@@ -5,14 +5,13 @@ import path from 'path';
 import { db } from './src/db/index.js';
 import { users, miningClaims, taskCompletions, withdrawals, referrals, purchasedNfts, manualTaskSubmissions } from './src/db/schema.js';
 import { eq, and, gt, desc, sql, count } from 'drizzle-orm';
-import { createServer as createViteServer } from 'vite';
 import { REFERRAL_USDT_REWARD_UNITS, REFERRAL_MINING_BONUS_UNITS, USDT_SCALE } from './src/config/referral.js';
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'mock_token';
 const BASE_MINING_RATE = 100; // 0.01 USDT per day base
 const MAX_MINING_RATE = 2000; // 0.20 USDT per day max
@@ -1268,6 +1267,7 @@ app.all('/api/*path', (req, res) => {
 // Vite middleware for development
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
