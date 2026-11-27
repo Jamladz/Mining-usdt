@@ -18,6 +18,7 @@ export interface User {
   lastClaimAt?: number;
   claimedWelcome?: number;
   hasNft?: number;
+  miningVerified?: number;
   createdAt: number;
   completedTasks?: string;
 }

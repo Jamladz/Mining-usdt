@@ -167,6 +167,7 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
             referralEarnings: backup?.referralEarnings ?? 0,
             claimedWelcome: backup?.claimedWelcome ?? 0,
             hasNft: backup?.hasNft ?? 0,
+            miningVerified: backup?.miningVerified ?? 0,
             createdAt: Date.now(),
             updatedAt: Date.now()
           }).returning().get();
@@ -284,7 +285,12 @@ app.post('/api/auth', requireUser, async (req: any, res: any) => {
     }
 
     if (!isNewUserFlag) {
-      await db.update(users).set({ updatedAt: Date.now() }).where(eq(users.id, userId));
+      const backupMiningVerified = Number(req.body.firestore_backup?.miningVerified || 0);
+      const nextMiningVerified = Math.max(Number(user?.miningVerified || 0), backupMiningVerified);
+      await db.update(users).set({
+        updatedAt: Date.now(),
+        ...(nextMiningVerified > (user?.miningVerified || 0) ? { miningVerified: nextMiningVerified } : {})
+      }).where(eq(users.id, userId));
     }
 
     const formattedUser = await getFormattedUser(userId);
@@ -781,11 +787,32 @@ app.post('/api/welcome/claim', requireUser, async (req: any, res: any) => {
   res.json({ success: true, user: updatedUser });
 });
 
+app.post('/api/verify-mining', requireUser, async (req: any, res: any) => {
+  const userId = req.user.id.toString();
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  await db.update(users).set({
+    miningVerified: 1,
+    updatedAt: Date.now()
+  }).where(eq(users.id, userId));
+
+  const updatedUser = await getFormattedUser(userId);
+  res.json({ success: true, user: updatedUser });
+});
+
 app.post('/api/mine', requireUser, async (req: any, res: any) => {
   const userId = req.user.id.toString();
   const user = await db.select().from(users).where(eq(users.id, userId)).get();
   
   if (!user) return res.status(404).json({ error: 'User not found' });
+
+  if (!user.miningVerified || user.miningVerified < 1) {
+    return res.status(403).json({
+      error: 'Wallet connection and one-time 0.05 TON verification are required to start mining',
+      code: 'VERIFICATION_REQUIRED'
+    });
+  }
   
   const now = Date.now();
   if (user.lastClaimAt && now - user.lastClaimAt < CLAIM_COOLDOWN_MS) {
